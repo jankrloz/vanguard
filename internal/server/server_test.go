@@ -136,4 +136,21 @@ func TestServerEndpoints(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("POST /api/config/pin = %d, want 200: %s", w.Code, w.Body.String())
 	}
+
+	// 7. Test cross-origin CSRF rejection & DNS rebinding protection
+	req = httptest.NewRequest("POST", "/api/topgrade", nil)
+	req.Header.Set("Origin", "https://evil.example.com")
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("POST /api/topgrade with evil Origin = %d, want 403", w.Code)
+	}
+
+	req = httptest.NewRequest("GET", "/api/outdated", nil)
+	req.Host = "evil-rebind.attacker.com:9099"
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("GET /api/outdated with DNS rebinding Host = %d, want 403", w.Code)
+	}
 }

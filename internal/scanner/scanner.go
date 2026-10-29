@@ -163,6 +163,13 @@ func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 	}, nil
 }
 
+func isSafeArg(s string) bool {
+	if s == "" || strings.HasPrefix(s, "-") {
+		return false
+	}
+	return !strings.ContainsAny(s, "\x00\r\n\t;&|`$")
+}
+
 func (s *Scanner) scanMPM(ctx context.Context, ignoredManagers []string) ([]domain.Package, error) {
 	scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
@@ -174,6 +181,9 @@ func (s *Scanner) scanMPM(ctx context.Context, ignoredManagers []string) ([]doma
 	// Add ignore flags
 	hasCPAN := false
 	for _, ign := range ignoredManagers {
+		if !isSafeArg(ign) {
+			continue
+		}
 		args = append(args, "--no-"+ign)
 		if strings.EqualFold(ign, "cpan") {
 			hasCPAN = true
@@ -252,7 +262,7 @@ func ParseMPMOutput(r io.Reader) []domain.Package {
 func enrichDescriptions(ctx context.Context, packages []domain.Package) {
 	var brewNames []string
 	for _, p := range packages {
-		if (p.Manager == "brew" || p.Manager == "cask") && p.Description == "" {
+		if (p.Manager == "brew" || p.Manager == "cask") && p.Description == "" && isSafeArg(p.Name) {
 			brewNames = append(brewNames, p.Name)
 		}
 	}
@@ -268,7 +278,7 @@ func enrichDescriptions(ctx context.Context, packages []domain.Package) {
 
 	// For gems: if description is empty, try quick gem specification
 	for i := range packages {
-		if packages[i].Manager == "gem" && packages[i].Description == "" {
+		if packages[i].Manager == "gem" && packages[i].Description == "" && isSafeArg(packages[i].Name) {
 			subCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 			out, err := exec.CommandContext(subCtx, "gem", "specification", packages[i].Name, "description").Output()
 			cancel()

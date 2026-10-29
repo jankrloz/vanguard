@@ -5,9 +5,23 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
+	"regexp"
 	"runtime"
 	"time"
 )
+
+var validUsernameRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+func safeCurrentUsername() string {
+	if u, err := user.Current(); err == nil && validUsernameRe.MatchString(u.Username) {
+		return u.Username
+	}
+	if envUser := os.Getenv("USER"); validUsernameRe.MatchString(envUser) {
+		return envUser
+	}
+	return "root"
+}
 
 // EnsureSudo checks if sudo privileges are active.
 // If not:
@@ -48,10 +62,7 @@ func EnsureSudo() error {
 
 	// 3. Fallback on macOS: Native macOS Authorization dialog with custom prompt
 	if runtime.GOOS == "darwin" {
-		user := os.Getenv("USER")
-		if user == "" {
-			user = "root"
-		}
+		user := safeCurrentUsername()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()

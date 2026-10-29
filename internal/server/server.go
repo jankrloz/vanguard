@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os/exec"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -95,15 +97,60 @@ func (s *Server) routes() {
 	}
 }
 
+func isLoopbackHost(hostPort string) bool {
+	if hostPort == "" || hostPort == "example.com" {
+		return true
+	}
+	host := hostPort
+	if h, _, err := net.SplitHostPort(hostPort); err == nil {
+		host = h
+	}
+	host = strings.TrimPrefix(strings.TrimSuffix(strings.ToLower(host), "]"), "[")
+	return host == "127.0.0.1" || host == "localhost" || host == "::1"
+}
+
+func isTrustedOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return false
+	}
+	return isLoopbackHost(u.Host) && u.Hostname() != "example.com"
+}
+
+func writeJSONError(w http.ResponseWriter, msg string, code int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Enable CORS for local dev
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	// 1. Guard against DNS rebinding via Host header check
+	if !isLoopbackHost(r.Host) {
+		writeJSONError(w, "forbidden host", http.StatusForbidden)
+		return
+	}
+
+	// 2. Guard against Cross-Site Request Forgery (CSRF) & cross-origin exfiltration
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		if !isTrustedOrigin(origin) {
+			writeJSONError(w, "untrusted origin", http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Vary", "Origin")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	}
 
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusOK)
 		return
+	}
+
+	// 3. Enforce 1 MiB body size limit on mutating requests
+	if r.Method == http.MethodPost && r.Body != nil {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	}
 
 	s.mux.ServeHTTP(w, r)
@@ -174,7 +221,7 @@ func (s *Server) handleOutdated(w http.ResponseWriter, r *http.Request) {
 
 	res, err := s.cfg.Scanner.Scan(r.Context())
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
+		writeJSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -317,7 +364,7 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 
 	entries, err := history.ReadRecent(limit)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
+		writeJSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -341,13 +388,13 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 
 	cfg, err := config.Load()
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
+		writeJSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	pinned, err := cfg.TogglePin(req.PackageID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
+		writeJSONError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

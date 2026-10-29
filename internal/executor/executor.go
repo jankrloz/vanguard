@@ -78,6 +78,15 @@ func isDirWritable(path string) bool {
 	return true
 }
 
+// isSafeIdentifier rejects CLI flag injection (leading hyphen) or control characters
+// in package or manager identifiers before passing them to subprocesses.
+func isSafeIdentifier(s string) bool {
+	if s == "" || strings.HasPrefix(s, "-") {
+		return false
+	}
+	return !strings.ContainsAny(s, "\x00\r\n\t;&|`$")
+}
+
 // ExecuteUpgrades groups packages by manager and runs upgrades while streaming events.
 func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, onEvent EventCallback) error {
 	e.mu.Lock()
@@ -91,6 +100,13 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 	// Group by manager
 	byManager := make(map[string][]domain.Package)
 	for _, p := range pkgs {
+		if !isSafeIdentifier(p.Manager) || !isSafeIdentifier(p.Name) {
+			onEvent(domain.UpgradeEvent{
+				Type:    "error",
+				Message: fmt.Sprintf("Rejected unsafe package identifier: %s:%s", p.Manager, p.Name),
+			})
+			continue
+		}
 		byManager[p.Manager] = append(byManager[p.Manager], p)
 	}
 

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VANGUARD — Unified Package Security &amp; Fleet Orchestrator</title>
+  <meta name="description" content="Single-binary Go daemon, Charm CLI &amp; embedded React 19 dashboard unifying 35+ package managers with real-time OSV.dev CVE intelligence and privilege-safe escalation." />
+  <meta property="og:title" content="VANGUARD — Unified Package Security &amp; Fleet Orchestrator" />
+  <meta property="og:description" content="35+ Package Managers · Real-Time OSV.dev CVE Triage · Privilege-Safe Escalation · Single Go Binary." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://jankrloz.github.io/vanguard/" />
+  <meta property="og:image" content="https://raw.githubusercontent.com/jankrloz/vanguard/main/assets/vanguard-social-preview.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #09090B;
+      --surface: #121216;
+      --surface-elevated: #18181F;
+      --border: #27272A;
+      --text: #FAFAFA;
+      --muted: #A1A1AA;
+      --subtle: #71717A;
+      --cyan: #00F0FF;
+      --indigo: #6366F1;
+      --rose: #FF2E93;
+      --orange: #F97316;
+      --amber: #FFB800;
+      --emerald: #00FF9D;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, sans-serif; }
+    body {
+      min-height: 100vh;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -15%, rgba(0, 240, 255, 0.12), transparent),
+        radial-gradient(ellipse 50% 40% at 85% 20%, rgba(255, 46, 147, 0.06), transparent),
+        linear-gradient(to bottom, rgba(39, 39, 42, 0.18) 1px, transparent 1px),
+        linear-gradient(to right, rgba(39, 39, 42, 0.18) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+    a { color: inherit; text-decoration: none; }
+
+    .container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+    /* Navbar */
+    header {
+      position: sticky; top: 0; z-index: 50;
+      backdrop-filter: blur(16px);
+      background: rgba(9, 9, 11, 0.82);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 68px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; letter-spacing: 0.14em; font-size: 15px; }
+    .brand-badge {
+      font-size: 11px; padding: 2px 8px; border-radius: 6px;
+      background: rgba(0, 240, 255, 0.1); color: var(--cyan);
+      border: 1px solid rgba(0, 240, 255, 0.25); letter-spacing: 0.04em;
+    }
+    .nav-links { display: flex; align-items: center; gap: 28px; font-size: 13px; color: var(--muted); }
+    .nav-links a:hover { color: var(--text); }
+    .btn-gh {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 14px; border-radius: 8px;
+      background: var(--surface-elevated); border: 1px solid var(--border);
+      color: var(--text); font-weight: 600; font-size: 13px;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .btn-gh:hover { border-color: var(--cyan); transform: translateY(-1px); }
+
+    /* Hero */
+    .hero { padding: 84px 0 56px; text-align: center; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 14px; border-radius: 999px;
+      background: rgba(0, 240, 255, 0.07);
+      border: 1px solid rgba(0, 240, 255, 0.25);
+      color: var(--cyan); font-size: 12px; font-weight: 600;
+      margin-bottom: 24px;
+    }
+    .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
+    h1 {
+      font-size: clamp(36px, 5.5vw, 64px);
+      font-weight: 800; letter-spacing: -0.03em; line-height: 1.08;
+      max-width: 900px; margin: 0 auto 20px;
+    }
+    .gradient-text {
+      background: linear-gradient(135deg, #FFFFFF 0%, #00F0FF 55%, #6366F1 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero-sub {
+      color: var(--muted); font-size: clamp(16px, 2vw, 19px);
+      max-width: 680px; margin: 0 auto 36px;
+    }
+
+    /* Install Command Bar */
+    .install-box {
+      display: flex; align-items: center; justify-content: space-between;
+      max-width: 660px; margin: 0 auto 24px;
+      padding: 12px 16px; border-radius: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    }
+    .install-cmd { font-size: 13px; color: #E4E4E7; overflow-x: auto; white-space: nowrap; text-align: left; }
+    .install-cmd .prompt { color: var(--cyan); user-select: none; margin-right: 8px; }
+    .copy-btn {
+      background: rgba(0, 240, 255, 0.12); color: var(--cyan);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+      cursor: pointer; flex-shrink: 0; margin-left: 12px; transition: all 0.15s;
+    }
+    .copy-btn:hover { background: rgba(0, 240, 255, 0.22); }
+
+    /* Dual Mode Preview Window */
+    .showcase {
+      margin: 36px auto 72px;
+      border-radius: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(0, 240, 255, 0.08);
+      overflow: hidden;
+    }
+    .window-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 18px; background: #0D0D11; border-bottom: 1px solid var(--border);
+    }
+    .dots { display: flex; gap: 7px; }
+    .dots span { width: 11px; height: 11px; border-radius: 50%; background: #27272A; }
+    .dots span:nth-child(1) { background: #FF5F56; }
+    .dots span:nth-child(2) { background: #FFBD2E; }
+    .dots span:nth-child(3) { background: #27C93F; }
+    .tabs { display: flex; gap: 6px; }
+    .tab-btn {
+      background: transparent; color: var(--muted); border: 1px solid transparent;
+      padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .tab-btn.active {
+      background: rgba(0, 240, 255, 0.1); color: var(--cyan);
+      border-color: rgba(0, 240, 255, 0.3);
+    }
+    .pane { padding: 24px; text-align: left; font-size: 13px; line-height: 1.65; overflow-x: auto; }
+    .pane.hidden { display: none; }
+
+    /* Terminal colors */
+    .c-cyan { color: var(--cyan); font-weight: 700; }
+    .c-rose { color: var(--rose); font-weight: 700; }
+    .c-orange { color: var(--orange); font-weight: 700; }
+    .c-amber { color: var(--amber); font-weight: 700; }
+    .c-emerald { color: var(--emerald); font-weight: 700; }
+    .c-muted { color: var(--subtle); }
+    .badge-crit { background: var(--rose); color: #09090B; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 11px; }
+    .badge-high { background: var(--orange); color: #09090B; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 11px; }
+    .badge-med { background: var(--amber); color: #09090B; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 11px; }
+    .badge-safe { color: var(--emerald); font-weight: 600; }
+
+    /* Mock Web Table inside Tab 2 */
+    .web-mock-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px;
+    }
+    .kpi-card {
+      background: #0D0D12; border: 1px solid var(--border); border-radius: 10px; padding: 14px;
+    }
+    .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .kpi-val { font-size: 26px; font-weight: 800; margin-top: 4px; }
+    .mock-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px;
+      margin-bottom: 8px; background: #0E0E13;
+    }
+
+    /* Section Grid */
+    section { padding: 64px 0; border-top: 1px solid rgba(39, 39, 42, 0.6); }
+    .section-title { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px; }
+    .section-sub { color: var(--muted); font-size: 15px; margin-bottom: 36px; max-width: 680px; }
+
+    .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 20px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 24px;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: rgba(0, 240, 255, 0.4); }
+    .card-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; border-radius: 9px;
+      background: rgba(0, 240, 255, 0.1); color: var(--cyan);
+      font-weight: 700; margin-bottom: 14px;
+    }
+    .card h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .card p { color: var(--muted); font-size: 14px; }
+
+    /* Severity Table */
+    table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+    th, td { padding: 14px 18px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+    th { background: #0D0D11; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+    tr:last-child td { border-bottom: none; }
+
+    footer {
+      padding: 40px 0; border-top: 1px solid var(--border);
+      color: var(--subtle); font-size: 13px; text-align: center;
+    }
+    @media (max-width: 768px) {
+      .web-mock-grid { grid-template-columns: repeat(2, 1fr); }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container nav">
+      <a href="#" class="brand">
+        <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+          <defs>
+            <linearGradient id="vgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#00F0FF"/>
+              <stop offset="100%" stop-color="#6366F1"/>
+            </linearGradient>
+          </defs>
+          <rect x="2" y="2" width="60" height="60" rx="14" fill="#09090B" stroke="url(#vgGrad)" stroke-width="3"/>
+          <path d="M16 18L32 48L48 18H39L32 33L25 18H16Z" fill="url(#vgGrad)"/>
+          <circle cx="32" cy="14" r="3" fill="#00FF9D"/>
+        </svg>
+        <span>VANGUARD</span>
+        <span class="brand-badge mono">v0.1.2</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#features">Capabilities</a>
+        <a href="#security">CVE Intelligence</a>
+        <a href="#privilege">Privilege Isolation</a>
+        <a href="#cli">CLI Reference</a>
+      </nav>
+      <a href="https://github.com/jankrloz/vanguard" target="_blank" rel="noopener noreferrer" class="btn-gh">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        <span>jankrloz/vanguard</span>
+      </a>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero" style="border-top:none;">
+      <div class="eyebrow mono">
+        <span class="dot"></span>
+        <span>35+ PACKAGE MANAGERS · REAL-TIME OSV.DEV CVE TRIAGE · TOUCH ID GUARD</span>
+      </div>
+      <h1>
+        Zero-blindspot security for <span class="gradient-text">every package on your machine.</span>
+      </h1>
+      <p class="hero-sub">
+        Vanguard unifies <strong>Meta Package Manager (mpm)</strong>, <strong>Topgrade</strong>, and real-time <strong>OSV.dev / GHSA / NVD</strong> vulnerability hydration into a single Go binary—with a Charm-powered CLI and an embedded React 19 control center.
+      </p>
+
+      <div class="install-box">
+        <div class="install-cmd mono" id="install-text">
+          <span class="prompt">$</span>git clone https://github.com/jankrloz/vanguard.git &amp;&amp; cd vanguard &amp;&amp; task install
+        </div>
+        <button class="copy-btn mono" onclick="copyInstall(this)">Copy</button>
+      </div>
+
+      <div class="showcase">
+        <div class="window-bar">
+          <div class="dots"><span></span><span></span><span></span></div>
+          <div class="tabs">
+            <button class="tab-btn mono active" onclick="switchTab('cli', this)">Terminal CLI (vg check)</button>
+            <button class="tab-btn mono" onclick="switchTab('web', this)">Embedded Web Control (127.0.0.1:9099)</button>
+          </div>
+          <div class="mono c-muted" style="font-size:11px;">darwin/arm64</div>
+        </div>
+
+        <div id="pane-cli" class="pane mono">
+<pre style="margin:0;"><span class="c-cyan">  ██╗   ██╗ █████╗ ███╗   ██╗ ██████╗ ██╗   ██╗ █████╗ ██████╗ ██████╗ 
+  ██║   ██║██╔══██╗████╗  ██║██╔════╝ ██║   ██║██╔══██╗██╔══██╗██╔══██╗
+  ╚██╗ ██╔╝███████║██╔██╗ ██║██║  ███╗██║   ██║███████║██████╔╝██║  ██║
+   ╚████╔╝ ██╔══██║██║╚██╗██║██║   ██║██║   ██║██╔══██║██╔══██╗██║  ██║
+    ╚═══╝  ╚═╝  ╚═╝╚═╝ ╚═══╝ ╚██████╔╝ ╚█████╔╝╚═╝  ╚═╝╚═╝  ╚═╝██████╔╝</span>
+  <span class="c-muted">UNIFIED PACKAGE SECURITY &amp; FLEET ORCHESTRATOR</span>  <span class="c-cyan">v0.1.2 · darwin/arm64</span>
+
+  <span class="c-rose">🚨 3 Vulnerable (1 Critical, 1 High, 1 Medium)</span> · <span class="c-emerald">✓ 22 Safe</span> · <span class="c-amber">⚠️  35 Major</span>
+
+  <span class="c-muted">MANAGER    PACKAGE                   CURRENT        LATEST         STATUS / ADVISORY</span>
+  <span class="c-muted">──────────────────────────────────────────────────────────────────────────────────────────────────────────────</span>
+  gem        rexml                     3.2.5          3.4.4          <span class="badge-crit">CRITICAL</span> <span class="c-rose">CVE-2024-49761 (GHSA-2rxp-v6pw-ch6m) — REXML ReDoS vulnerability</span> <span class="c-muted">(fix &gt;= 3.3.9)</span>
+  gem        net-imap                  0.2.3          0.6.3          <span class="badge-high">HIGH</span>     <span class="c-orange">CVE-2025-25186 (GHSA-7fc5-f82f-cx69) — DoS via malicious IMAP server</span> <span class="c-muted">(fix &gt;= 0.3.8)</span>
+  gem        rdoc                      6.4.0          7.2.0          <span class="badge-med">MEDIUM</span>   <span class="c-amber">CVE-2024-27281 (GHSA-5obj-2p47-6v7q) — RCE via parsed documentation cache</span> <span class="c-muted">(fix &gt;= 6.4.1.1)</span>
+  brew       ca-certificates           2025-12-02     2026-03-19     <span class="badge-safe">✓ SAFE (PATCH)</span> <span class="c-muted">— Mozilla CA certificate store</span>
+  brew       uv                        0.9.18         0.11.6         <span class="badge-safe">✓ SAFE (MINOR)</span> <span class="c-muted">— Extremely fast Python package installer</span></pre>
+        </div>
+
+        <div id="pane-web" class="pane hidden">
+          <div class="web-mock-grid">
+            <div class="kpi-card">
+              <div class="kpi-label">Outdated Packages</div>
+              <div class="kpi-val">58</div>
+            </div>
+            <div class="kpi-card" style="border-color:rgba(255,46,147,0.4);">
+              <div class="kpi-label" style="color:var(--rose);">Security Advisories</div>
+              <div class="kpi-val" style="color:var(--rose);">3 <span style="font-size:12px;font-weight:600;">(1 CRIT · 1 HIGH · 1 MED)</span></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" style="color:var(--emerald);">Safe Updates</div>
+              <div class="kpi-val" style="color:var(--emerald);">22</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" style="color:var(--amber);">Major Breaking</div>
+              <div class="kpi-val" style="color:var(--amber);">35</div>
+            </div>
+          </div>
+          <div class="mock-row">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="mono" style="font-weight:700;">rexml</span>
+                <span class="mono c-muted" style="font-size:11px;">[gem]</span>
+                <span class="badge-crit mono">CRITICAL · 5 CVEs</span>
+              </div>
+              <div style="font-size:12px;color:var(--rose);margin-top:4px;">
+                <span class="mono">CVE-2024-49761:</span> REXML ReDoS vulnerability when parsing XML with many digits between &amp;# and x... (fixed &gt;= 3.3.9)
+              </div>
+            </div>
+            <div class="mono" style="font-size:12px;"><span class="c-muted">3.2.5 →</span> <span class="c-emerald">3.4.4</span></div>
+          </div>
+          <div class="mock-row">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="mono" style="font-weight:700;">net-imap</span>
+                <span class="mono c-muted" style="font-size:11px;">[gem]</span>
+                <span class="badge-high mono">HIGH · 2 CVEs</span>
+              </div>
+              <div style="font-size:12px;color:var(--orange);margin-top:4px;">
+                <span class="mono">CVE-2025-25186:</span> Net::IMAP memory exhaustion denial of service via malicious server responses (fixed &gt;= 0.3.8)
+              </div>
+            </div>
+            <div class="mono" style="font-size:12px;"><span class="c-muted">0.2.3 →</span> <span class="c-emerald">0.6.3</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="section-title">Engineered for High-Signal Fleet Hygiene</div>
+      <p class="section-sub">No bloated Electron wrappers, no cloud accounts, and no root-polluted user directories.</p>
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon mono">01</div>
+          <h3>35+ Package Managers via MPM</h3>
+          <p>Orchestrates Homebrew, Cask, npm, pnpm, bun, uv, pipx, Cargo, Go, RubyGems, Composer, MAS, and APT/APK—automatically filtering out macOS Perl CPAN dual-lived noise.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon mono">02</div>
+          <h3>Real-Time OSV.dev Hydration</h3>
+          <p>Concurrently queries OSV.dev batch endpoints and hydrates full vulnerability advisories (CVE IDs, GHSA, RustSec, PySEC, human-readable summaries, and fixed-in versions).</p>
+        </div>
+        <div class="card">
+          <div class="card-icon mono">03</div>
+          <h3>Namespace-Aware Privilege Guard</h3>
+          <p>Never runs user-scoped managers (brew, npm, cargo, pip) as root. Escalates only for system paths (e.g. <code>/Library/Ruby/Gems</code>) via Touch ID or native macOS prompts.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon mono">04</div>
+          <h3>In-Place Queue Review &amp; Lock</h3>
+          <p>Filter by Critical, High, Safe, Major, or Queued in a single unified table. Execution locks selection controls and streams real-time SSE stdout/stderr logs.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon mono">05</div>
+          <h3>Hardened Loopback Security</h3>
+          <p>Binds strictly to <code>127.0.0.1</code> with Host-header DNS-rebinding protection, strict Origin CSRF guards, and subprocess argument-injection validation.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon mono">06</div>
+          <h3>Single Go Binary + JSONL Audit</h3>
+          <p>React 19 + Tailwind v4 SPA is embedded via <code>//go:embed</code>. Every upgrade and Topgrade sweep is recorded to <code>~/.local/state/vanguard/history.jsonl</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="security">
+      <div class="section-title">Multi-Tier Vulnerability Triage</div>
+      <p class="section-sub">Not all advisories are equal. Vanguard classifies and ranks every outdated package by real CVSS/GHSA severity.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Severity Tier</th>
+            <th>CVSS / Vector Criteria</th>
+            <th>Intelligence Sources</th>
+            <th>Default Behavior</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge-crit mono">CRITICAL</span></td>
+            <td class="mono">CVSS &ge; 9.0 · Network RCE (AV:N/C:H/I:H)</td>
+            <td>NVD CVE, GHSA, RustSec, PySEC, Go Vuln DB</td>
+            <td>Ranked #1 · Auto-queued · Blocks <code>vg check</code> (exit 1)</td>
+          </tr>
+          <tr>
+            <td><span class="badge-high mono">HIGH</span></td>
+            <td class="mono">CVSS 7.0 – 8.9 · Remote DoS / Memory Exhaustion</td>
+            <td>NVD CVE, GHSA, OSV Ecosystem Feeds</td>
+            <td>Ranked #2 · Auto-queued · Blocks <code>vg check</code> (exit 1)</td>
+          </tr>
+          <tr>
+            <td><span class="badge-med mono">MEDIUM</span></td>
+            <td class="mono">CVSS 4.0 – 6.9 · Local / Conditional Exploitation</td>
+            <td>GHSA Moderate, RubySec, npm Audit via OSV</td>
+            <td>Ranked #3 · Highlighted with inline advisory summary</td>
+          </tr>
+          <tr>
+            <td><span class="badge-safe mono">SAFE (MINOR/PATCH)</span></td>
+            <td class="mono">SemVer non-breaking update (&lt; next major)</td>
+            <td>Registry SemVer Delta</td>
+            <td>Ranked #4 · Pre-selected for one-click batch upgrade</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="cli">
+      <div class="section-title">CLI &amp; Headless Automation</div>
+      <p class="section-sub">Styled with the Charm stack (Lipgloss + Bubbles) for interactive terminals and clean CI/cron execution.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Command</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono c-cyan">vg</td>
+            <td>Launch local daemon on <code>127.0.0.1:9099</code> and open the embedded Web Control Center</td>
+          </tr>
+          <tr>
+            <td class="mono c-cyan">vg -no-web</td>
+            <td>Run daemon in headless background mode without opening a browser window</td>
+          </tr>
+          <tr>
+            <td class="mono c-cyan">vg check</td>
+            <td>Scan all managers, hydrate OSV advisories, print severity table, exit <code>1</code> on Critical/High CVEs</td>
+          </tr>
+          <tr>
+            <td class="mono c-cyan">vg apply [--cve-only | --all]</td>
+            <td>Apply safe or security-only updates directly in the terminal with live streaming progress</td>
+          </tr>
+          <tr>
+            <td class="mono c-cyan">vg sweep</td>
+            <td>Trigger deep system-wide Topgrade sweep (git repos, language toolchains, firmware)</td>
+          </tr>
+          <tr>
+            <td class="mono c-cyan">vg history</td>
+            <td>Inspect persistent JSONL upgrade audit trail (<code>~/.local/state/vanguard/history.jsonl</code>)</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      Built with Go 1.26, Charm Lipgloss/Bubbles, React 19 &amp; Vite+ · <a href="https://github.com/jankrloz/vanguard" style="color:var(--cyan);">GitHub Repository</a>
+    </div>
+  </footer>
+
+  <script>
+    function copyInstall(btn) {
+      const cmd = "git clone https://github.com/jankrloz/vanguard.git && cd vanguard && task install";
+      navigator.clipboard.writeText(cmd).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = "Copied ✓";
+        setTimeout(() => { btn.textContent = orig; }, 1800);
+      });
+    }
+    function switchTab(tab, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('pane-cli').classList.toggle('hidden', tab !== 'cli');
+      document.getElementById('pane-web').classList.toggle('hidden', tab !== 'web');
+    }
+  </script>
+</body>
+</html>

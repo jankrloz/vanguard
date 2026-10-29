@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -29,9 +31,7 @@ type OSVBatchRequest struct {
 
 type OSVBatchResponse struct {
 	Results []struct {
-		Vulns []struct {
-			ID string `json:"id"`
-		} `json:"vulns"`
+		Vulns []OSVVulnDetail `json:"vulns"`
 	} `json:"results"`
 }
 
@@ -40,6 +40,7 @@ type OSVVulnDetail struct {
 	Summary  string   `json:"summary"`
 	Details  string   `json:"details"`
 	Aliases  []string `json:"aliases"`
+	Upstream []string `json:"upstream"`
 	Severity []struct {
 		Type  string `json:"type"`
 		Score string `json:"score"`
@@ -107,14 +108,23 @@ func MapManagerToEcosystem(mgr string) string {
 // FetchVulnDetail fetches full vulnerability advisory details by ID with caching.
 func (a *Advisor) FetchVulnDetail(ctx context.Context, id string) (*OSVVulnDetail, error) {
 	a.cacheMu.RLock()
-	cached, ok := a.cache[id]
+	var cached *OSVVulnDetail
+	var ok bool
+	if a.cache != nil {
+		cached, ok = a.cache[id]
+	}
 	a.cacheMu.RUnlock()
 	if ok {
 		return cached, nil
 	}
 
-	url := fmt.Sprintf("https://api.osv.dev/v1/vulns/%s", id)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	vulnBase := "https://api.osv.dev/v1/vulns"
+	if a.baseURL != "" && a.baseURL != "https://api.osv.dev/v1/querybatch" {
+		vulnBase = strings.TrimSuffix(a.baseURL, "/v1/querybatch") + "/v1/vulns"
+	}
+
+	reqURL := fmt.Sprintf("%s/%s", vulnBase, url.PathEscape(id))
+	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -130,11 +140,14 @@ func (a *Advisor) FetchVulnDetail(ctx context.Context, id string) (*OSVVulnDetai
 	}
 
 	var detail OSVVulnDetail
-	if err := json.NewDecoder(resp.Body).Decode(&detail); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 2<<20)).Decode(&detail); err != nil {
 		return nil, err
 	}
 
 	a.cacheMu.Lock()
+	if a.cache == nil {
+		a.cache = make(map[string]*OSVVulnDetail)
+	}
 	a.cache[id] = &detail
 	a.cacheMu.Unlock()
 
@@ -183,6 +196,7 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 	// 2. Query batch in chunks
 	const chunkSize = 500
 	var uniqueVulnIDs = make(map[string]bool)
+	detailsMap := make(map[string]*OSVVulnDetail)
 	type pkgMatch struct {
 		pkgIdx  int
 		vulnIDs []string
@@ -221,7 +235,7 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 		}
 
 		var batchResp OSVBatchResponse
-		decodeErr := json.NewDecoder(resp.Body).Decode(&batchResp)
+		decodeErr := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&batchResp)
 		_ = resp.Body.Close()
 		if decodeErr != nil {
 			continue
@@ -235,19 +249,23 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 			pkgIdx := currentChunk[resIdx].pkgIndex
 			var ids []string
 			for _, v := range res.Vulns {
+				vCopy := v
 				ids = append(ids, v.ID)
-				uniqueVulnIDs[v.ID] = true
+				if v.Summary != "" || v.Details != "" || v.DatabaseSpecific.Severity != "" || len(v.Aliases) > 0 || len(v.Upstream) > 0 || len(v.Affected) > 0 {
+					detailsMap[v.ID] = &vCopy
+				} else {
+					uniqueVulnIDs[v.ID] = true
+				}
 			}
 			matches = append(matches, pkgMatch{pkgIdx: pkgIdx, vulnIDs: ids})
 		}
 	}
 
-	if len(uniqueVulnIDs) == 0 {
+	if len(matches) == 0 {
 		return pkgs
 	}
 
 	// 3. Hydrate full details for each unique vulnerability ID concurrently
-	detailsMap := make(map[string]*OSVVulnDetail)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 10) // Concurrency limiter
@@ -291,7 +309,7 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 			if detail != nil {
 				// Prefer CVE alias if available
 				cveAlias := ""
-				for _, alias := range detail.Aliases {
+				for _, alias := range append(detail.Aliases, detail.Upstream...) {
 					if strings.HasPrefix(alias, "CVE-") {
 						cveAlias = alias
 						break
