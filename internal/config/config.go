@@ -33,7 +33,7 @@ func DefaultConfig() Config {
 		},
 		Packages: PackagesConfig{
 			Pinned:          []string{},
-			IgnoredManagers: []string{},
+			IgnoredManagers: []string{"cpan"},
 		},
 	}
 }

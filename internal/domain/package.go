@@ -42,6 +42,10 @@ type ScanSummary struct {
 	MajorCount       int `json:"major_count"`
 	PinnedCount      int `json:"pinned_count"`
 	SecurityFixCount int `json:"security_fix_count"`
+	CriticalCount    int `json:"critical_count"`
+	HighCount        int `json:"high_count"`
+	MediumCount      int `json:"medium_count"`
+	LowCount         int `json:"low_count"`
 }
 
 type ScanResult struct {

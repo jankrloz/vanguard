@@ -107,6 +107,10 @@ func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 	majorCount := 0
 	pinnedCount := 0
 	securityFixCount := 0
+	criticalCount := 0
+	highCount := 0
+	mediumCount := 0
+	lowCount := 0
 
 	// 4. Calculate summaries
 	for _, p := range packages {
@@ -121,6 +125,16 @@ func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 		}
 		if p.HasVulnerability {
 			securityFixCount++
+			switch strings.ToUpper(p.MaxSeverity) {
+			case "CRITICAL":
+				criticalCount++
+			case "HIGH":
+				highCount++
+			case "MEDIUM", "MODERATE":
+				mediumCount++
+			default:
+				lowCount++
+			}
 		}
 	}
 
@@ -141,6 +155,10 @@ func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 			MajorCount:       majorCount,
 			PinnedCount:      pinnedCount,
 			SecurityFixCount: securityFixCount,
+			CriticalCount:    criticalCount,
+			HighCount:        highCount,
+			MediumCount:      mediumCount,
+			LowCount:         lowCount,
 		},
 	}, nil
 }
@@ -154,8 +172,17 @@ func (s *Scanner) scanMPM(ctx context.Context, ignoredManagers []string) ([]doma
 	}
 
 	// Add ignore flags
+	hasCPAN := false
 	for _, ign := range ignoredManagers {
 		args = append(args, "--no-"+ign)
+		if strings.EqualFold(ign, "cpan") {
+			hasCPAN = true
+		}
+	}
+
+	// Exclude macOS system Perl CPAN dual-lived core packages (2,140 modules) by default
+	if !hasCPAN {
+		args = append(args, "--no-cpan")
 	}
 
 	args = append(args, "outdated", "--columns", "manager_id,package_id,installed_version,latest_version")

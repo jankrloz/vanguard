@@ -51,7 +51,7 @@ export const MetricBar: FC<MetricBarProps> = ({
             }`}
           >
             <ShieldAlert className={`w-3.5 h-3.5 ${summary.security_fix_count > 0 ? "text-rose-400" : "text-zinc-500"}`} />
-            Critical & CVEs
+            Vulnerabilities
           </span>
           {activeFilter === "security" && (
             <span className="text-[10px] font-mono font-medium text-rose-400">ACTIVE</span>
@@ -69,9 +69,28 @@ export const MetricBar: FC<MetricBarProps> = ({
               {summary.security_fix_count}
             </span>
           )}
-          <span className="text-[11px] font-mono text-zinc-400">
-            {isInitialScanning ? "Scanning..." : summary.security_fix_count > 0 ? "Urgent fix" : "Clean"}
-          </span>
+          <div className="flex items-center gap-1.5 text-[10px] font-mono">
+            {isInitialScanning ? (
+              <span className="text-zinc-500">Scanning...</span>
+            ) : summary.security_fix_count === 0 ? (
+              <span className="text-zinc-400">Clean</span>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                {(summary.critical_count ?? 0) > 0 && (
+                  <span className="text-rose-400 font-bold">{summary.critical_count} Crit</span>
+                )}
+                {(summary.high_count ?? 0) > 0 && (
+                  <span className="text-orange-400 font-medium">{summary.high_count} High</span>
+                )}
+                {(summary.medium_count ?? 0) > 0 && (
+                  <span className="text-amber-400">{summary.medium_count} Med</span>
+                )}
+                {summary.critical_count === 0 && summary.high_count === 0 && summary.medium_count === 0 && (
+                  <span className="text-rose-400">Action needed</span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </button>
 

@@ -895,10 +895,22 @@ export const PackageTable: FC<PackageTableProps> = ({
                                   <button
                                     type="button"
                                     onClick={(e) => toggleExpand(id, e)}
-                                    className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-700 hover:bg-rose-900 cursor-pointer uppercase tracking-wider transition-colors"
+                                    className={`inline-flex items-center gap-1 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border cursor-pointer uppercase tracking-wider transition-colors ${
+                                      maxSev === "CRITICAL"
+                                        ? "bg-rose-950 text-rose-300 border-rose-600 hover:bg-rose-900"
+                                        : maxSev === "HIGH"
+                                        ? "bg-orange-950 text-orange-300 border-orange-700 hover:bg-orange-900"
+                                        : maxSev === "MEDIUM" || maxSev === "MODERATE"
+                                        ? "bg-amber-950/70 text-amber-300 border-amber-700/80 hover:bg-amber-900"
+                                        : "bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700"
+                                    }`}
                                     title="Click to expand security advisory details"
                                   >
-                                    <Flame className="w-2.5 h-2.5 text-rose-400" />
+                                    {maxSev === "CRITICAL" ? (
+                                      <Flame className="w-2.5 h-2.5 text-rose-400" />
+                                    ) : (
+                                      <AlertTriangle className="w-2.5 h-2.5 text-orange-400" />
+                                    )}
                                     <span>{maxSev} ({vulns.length})</span>
                                     {isExpanded ? (
                                       <ChevronDown className="w-2.5 h-2.5" />
@@ -963,12 +975,14 @@ export const PackageTable: FC<PackageTableProps> = ({
                                         </span>
                                       )}
                                       <span
-                                        className={`text-[10px] px-1.5 py-0.2 rounded shrink-0 font-bold uppercase ${
+                                        className={`text-[10px] px-1.5 py-0.2 rounded shrink-0 font-bold uppercase border ${
                                           v.severity === "CRITICAL"
-                                            ? "bg-rose-950 text-rose-200 border border-rose-600"
+                                            ? "bg-rose-950 text-rose-200 border-rose-600"
                                             : v.severity === "HIGH"
-                                            ? "bg-rose-900/60 text-rose-300 border border-rose-700"
-                                            : "bg-amber-950 text-amber-300 border border-amber-700"
+                                            ? "bg-orange-950 text-orange-200 border-orange-700"
+                                            : v.severity === "MEDIUM" || v.severity === "MODERATE"
+                                            ? "bg-amber-950 text-amber-200 border-amber-700"
+                                            : "bg-zinc-800 text-zinc-300 border-zinc-700"
                                         }`}
                                       >
                                         {v.score ? `${v.severity} (${v.score})` : v.severity || "HIGH"}

@@ -29,12 +29,15 @@ func runCheck(ctx context.Context, args []string) int {
 
 	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
 
+	stopSpinner := ui.StartSpinner("Scanning packages across system registries & querying OSV.dev advisories")
 	s := scanner.New()
 	res, err := s.Scan(ctx)
 	if err != nil {
+		stopSpinner("")
 		fmt.Fprintf(os.Stderr, "  %s✗ Scan failed: %v%s\n", ui.Rose, err, ui.Reset)
 		return 1
 	}
+	stopSpinner(fmt.Sprintf("Discovered %d outdated packages across active registries", len(res.Packages)))
 
 	var candidates []domain.Package
 	for _, p := range res.Packages {
@@ -108,9 +111,11 @@ func runCheck(ctx context.Context, args []string) int {
 	printGroup("OTHER PACKAGES", others, ui.Zinc)
 
 	summaryText := fmt.Sprintf(
-		"Total Outdated: %s%d%s │ Urgent CVEs: %s%d%s │ Safe: %s%d%s │ Major: %s%d%s │ Pinned: %d",
+		"Total: %s%d%s │ Critical: %s%d%s │ High: %s%d%s │ Med: %s%d%s │ Safe: %s%d%s │ Major: %s%d%s │ Pinned: %d",
 		ui.White, res.Summary.TotalPackages, ui.Reset,
-		ui.Rose+ui.Bold, res.Summary.SecurityFixCount, ui.Reset,
+		ui.Rose+ui.Bold, res.Summary.CriticalCount, ui.Reset,
+		ui.Amber, res.Summary.HighCount, ui.Reset,
+		ui.Zinc, res.Summary.MediumCount, ui.Reset,
 		ui.Emerald, res.Summary.SafeCount, ui.Reset,
 		ui.Amber, res.Summary.MajorCount, ui.Reset,
 		res.Summary.PinnedCount,
@@ -140,12 +145,15 @@ func runApply(ctx context.Context, args []string) int {
 	_ = auth.EnsureSudo()
 	_ = config.EnsureMPMConfig()
 
+	stopSpinner := ui.StartSpinner("Scanning packages across registries for update candidates")
 	s := scanner.New()
 	res, err := s.Scan(ctx)
 	if err != nil {
+		stopSpinner("")
 		fmt.Fprintf(os.Stderr, "  ✗ Scan failed: %v\n", err)
 		return 1
 	}
+	stopSpinner(fmt.Sprintf("Scan completed (%d candidate packages found)", len(res.Packages)))
 
 	var candidates []domain.Package
 	for _, p := range res.Packages {

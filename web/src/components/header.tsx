@@ -1,6 +1,7 @@
 import type { FC } from "react";
 import { ShieldCheck, ShieldAlert, RefreshCw, Trash2, ArrowUpCircle, Zap, History, Loader2, ListFilter } from "lucide-react";
 import type { SystemStatus } from "../lib/types";
+import { BrandDelta } from "./brand-logo";
 
 interface HeaderProps {
   status: SystemStatus | null;
@@ -34,9 +35,7 @@ export const Header: FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-md bg-zinc-900 border border-zinc-700/70 flex items-center justify-center font-mono font-bold text-sm text-zinc-100 shadow-inner">
-            ▲
-          </div>
+          <BrandDelta size={34} className="w-8 h-8 shrink-0" />
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-semibold tracking-tight text-zinc-100 font-mono">VANGUARD</h1>

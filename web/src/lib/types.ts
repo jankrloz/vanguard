@@ -34,6 +34,10 @@ export interface ScanSummary {
   major_count: number;
   pinned_count: number;
   security_fix_count: number;
+  critical_count?: number;
+  high_count?: number;
+  medium_count?: number;
+  low_count?: number;
 }
 
 export interface ScanResult {
