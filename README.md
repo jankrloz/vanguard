@@ -28,27 +28,28 @@ When critical vulnerabilities emerge (such as zero-days, RCEs, prototype polluti
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture: Incremental by Design
+
+> **Vanguard is an additive, incremental layer — not a replacement.**  
+> It does not reinvent package management or discard battle-tested tools. Vanguard wraps `mpm`; `mpm` wraps `brew`, native language managers, and falls back to `topgrade` as its deliberate sinkhole. You keep 100% of your existing configurations, lockfiles, and tools while gaining biometric authentication, proactive zero-day detection, and interactive visual triage.
 
 ```
-┌────────────────────────────────────────────────────────┐
-│             Vanguard Local Web Dashboard               │
-│      React 19 • Tailwind CSS v4 • shadcn/ui • SSE      │
-└───────────────────────────▲────────────────────────────┘
-                            │ HTTP / SSE (/api/events)
-┌───────────────────────────┴────────────────────────────┐
-│                  Vanguard Go Engine                    │
-│                                                        │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌───────┐  │
-│  │ Touch ID Sudo    │  │ OSV.dev CVE      │  │ Server│  │
-│  │ Priming & Keep   │  │ Advisor & SemVer │  │ Embed │  │
-│  └────────▲─────────┘  └────────▲─────────┘  └───────┘  │
-└───────────┼─────────────────────┼──────────────────────┘
-            │                     │
-┌───────────▼─────────────────────▼──────────────────────┐
-│            Underlying System Package Managers          │
-│   brew • cask • mise • uv • pnpm • npm • mas • gcloud  │
-└────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│                    Layer 3: Vanguard (Shield & UX)                        │
+│   Touch ID Biometrics • OSV.dev CVE Intelligence • SemVer Breaking Guard  │
+│        Interactive Ephemeral Dashboard • SSE Real-Time Terminal Log       │
+└─────────────────────────────────────▲─────────────────────────────────────┘
+                                      │
+┌─────────────────────────────────────┴─────────────────────────────────────┐
+│                 Layer 2: MPM (Meta Package Manager)                       │
+│    Granular Multi-Ecosystem Abstraction & Inspection (20+ Managers)       │
+└─────────────────────────────────────▲─────────────────────────────────────┘
+                                      │ (delegation & sinkhole fallback)
+┌─────────────────────────────────────┴─────────────────────────────────────┐
+│               Layer 1: Topgrade & Native Package Managers                 │
+│      Topgrade (System, Rustup, Vim, OS firmware)                          │
+│      Homebrew (Formulae & Casks) • mise • uv • pnpm • npm • mas • gcloud   │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---

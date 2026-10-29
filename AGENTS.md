@@ -4,9 +4,17 @@
 
 ---
 
-## 1. Project Purpose
+## 1. Project Purpose & Philosophy
 
-**Vanguard** is an interactive, biometric-secured vulnerability shield and package update orchestrator for macOS and Linux. It inspects outdated packages across 20+ package managers, prioritizes urgent security fixes (integrating with **OSV.dev** for CVE and GHSA tracking), enforces a SemVer breaking-change guard, primes Touch ID once, and streams real-time execution logs to an ephemeral local web dashboard.
+**Vanguard** is an interactive, biometric-secured vulnerability shield and package update orchestrator for macOS and Linux.
+
+### Incremental Philosophy (Never a Replacement)
+Vanguard does **not** replace existing tools:
+- **Layer 3:** Vanguard provides Touch ID keepalive, OSV.dev CVE intelligence, SemVer triage, and an ephemeral web dashboard.
+- **Layer 2:** MPM (`meta-package-manager`) provides granular multi-manager inventory abstraction.
+- **Layer 1:** Topgrade and native managers (`brew`, `mise`, `uv`, `pnpm`, `npm`) execute the real work.
+
+Any feature or refactoring must maintain this incremental layering: never rewrite what MPM, Topgrade, or Homebrew already do natively.
 
 ---
 
