@@ -33,17 +33,17 @@ func main() {
 	fmt.Println("\n  ▲ VANGUARD — System Package & Dependency Updater")
 	fmt.Println("  ────────────────────────────────────────────────")
 
-	// 1. Biometric Touch ID pre-flight & Keepalive
+	// 1. Privilege pre-flight & Keepalive
 	if !*noSudo {
-		fmt.Print("  [1/3] Priming root privileges via Touch ID... ")
+		fmt.Print("  [1/3] Initializing privilege keepalive... ")
 		if err := auth.EnsureSudo(); err != nil {
 			fmt.Printf("⚠️  Warning: sudo priming failed: %v\n", err)
 		} else {
-			fmt.Println("✓ Authenticated")
+			fmt.Println("✓ Active")
 			auth.StartKeepAlive(ctx, 40*time.Second)
 		}
 	} else {
-		fmt.Println("  [1/3] Sudo priming skipped (--no-sudo)")
+		fmt.Println("  [1/3] Privilege priming skipped (--no-sudo)")
 	}
 
 	// 2. Load embedded static assets

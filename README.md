@@ -1,7 +1,7 @@
 # Vanguard (`vg` / `up`)
 
-> **Interactive, biometric-secured vulnerability shield & package orchestrator for macOS & Linux.**  
-> Detects and prioritizes urgent CVE/zero-day patches across 20+ package managers, enforces strict SemVer breaking-change guards, primes Touch ID once, and streams real-time execution logs.
+> **Interactive vulnerability shield & package update orchestrator for macOS & Linux.**  
+> Detects and prioritizes urgent CVE/zero-day patches across 20+ package managers, enforces strict SemVer breaking-change guards, and streams real-time execution logs.
 
 ---
 
@@ -11,18 +11,18 @@ Modern dev workstations run hundreds of dependencies across system package manag
 When critical vulnerabilities emerge (such as zero-days, RCEs, prototype pollution, or supply-chain poisoning):
 1. **Security blindness:** Developers delay updates because terminal updaters either dump an avalanche of noisy logs or force risky major breaking changes.
 2. **Delayed patching:** Routine updates hide critical security patches in a flat list.
-3. **Password friction:** Repeated, blocking terminal sudo password prompts break focus and biometric Touch ID (`pam_tid.so`).
+3. **Privilege friction:** Repeated sudo prompts interrupt long upgrade sessions.
 
 **Vanguard** transforms system updating into a proactive security habit:
 - **🚨 Urgent CVE & Zero-Day Prioritization:** Live integration with **OSV.dev** (Open Source Vulnerabilities) automatically scans every outdated package against known CVEs and GHSAs, calculates CVSS severity, bubbles vulnerable packages to the top, and marks them for urgent 1-click remediation.
-- **🛡️ Touch ID Biometric Priming & Keepalive:** Primes root permissions once at launch via macOS Touch ID (`pam_tid.so`) and maintains background credentials (`sudo -n true` every 40s) so terminal prompts never interrupt the workflow.
 - **🚦 SemVer Breaking-Change Guard:**
   - **Urgent Security Fixes:** Highlighted with pulsing danger badges and pre-checked.
   - **Routine Safe Updates (Patch & Minor):** Auto-checked for safe 1-click execution.
   - **Major Releases:** Unselected by default with warning callouts to prevent breaking APIs or CLIs.
-- **🌐 20+ Package Managers Unified:** Dispatches granular upgrade commands across `brew`, `cask`, `mise`, `uv`, `pnpm`, `npm`, `mas`, `gcloud`, etc.
+- **🌐 20+ Package Managers Unified:** Dispatches granular upgrade commands across `brew`, `cask`, `mise`, `uv`, `pnpm`, `npm`, `mas`, `gcloud`, etc., leveraging MPM and falling back to Topgrade.
 - **⚡ Ephemeral Web Dashboard:** Built with **Vite+**, **React 19**, **Tailwind CSS v4**, and **Lucide Icons** following substance-first, quiet-chrome UI principles.
 - **📡 Real-Time SSE Log Streaming:** Execution logs stream directly from child processes to a collapsible terminal drawer via Server-Sent Events.
+- **🛡️ Frictionless Privilege Keepalive:** Primes root permissions once at launch and maintains background credentials (`sudo -n true` every 40s) so terminal prompts never interrupt the workflow (supporting macOS Touch ID when enabled).
 - **📦 Single Self-Contained Binary:** Go `embed.FS` packs all compiled HTML/JS/CSS assets inside an 11MB standalone executable with zero runtime dependencies.
 - **🧹 System Cleanup:** Integrated one-click disk and cache cleanup via `mo clean` (Mole) or `brew cleanup`.
 
@@ -31,12 +31,12 @@ When critical vulnerabilities emerge (such as zero-days, RCEs, prototype polluti
 ## 🏗️ Architecture: Incremental by Design
 
 > **Vanguard is an additive, incremental layer — not a replacement.**  
-> It does not reinvent package management or discard battle-tested tools. Vanguard wraps `mpm`; `mpm` wraps `brew`, native language managers, and falls back to `topgrade` as its deliberate sinkhole. You keep 100% of your existing configurations, lockfiles, and tools while gaining biometric authentication, proactive zero-day detection, and interactive visual triage.
+> It does not reinvent package management or discard battle-tested tools. Vanguard wraps `mpm`; `mpm` wraps `brew`, native language managers, and falls back to `topgrade` as its deliberate sinkhole. You keep 100% of your existing configurations, lockfiles, and tools while gaining proactive zero-day detection, SemVer safety, and interactive visual triage.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
 │                    Layer 3: Vanguard (Shield & UX)                        │
-│   Touch ID Biometrics • OSV.dev CVE Intelligence • SemVer Breaking Guard  │
+│   OSV.dev CVE Intelligence • SemVer Breaking Guard • Privilege Keepalive  │
 │        Interactive Ephemeral Dashboard • SSE Real-Time Terminal Log       │
 └─────────────────────────────────────▲─────────────────────────────────────┘
                                       │

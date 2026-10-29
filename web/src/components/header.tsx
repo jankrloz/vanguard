@@ -48,18 +48,18 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Center: Sudo Status */}
+        {/* Center: Elevation Status */}
         <div className="hidden md:flex items-center gap-2 text-xs font-mono bg-zinc-900/90 border border-zinc-800 px-3 py-1.5 rounded-full">
           {status?.sudo_active ? (
             <>
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-zinc-300">Touch ID Sudo:</span>
-              <span className="text-emerald-400 font-medium">Primed & Active</span>
+              <span className="text-zinc-300">Privilege Keepalive:</span>
+              <span className="text-emerald-400 font-medium">Active</span>
             </>
           ) : (
             <>
               <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-zinc-400">Sudo:</span>
+              <span className="text-zinc-400">Privileges:</span>
               <span className="text-amber-400">Standard</span>
             </>
           )}

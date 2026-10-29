@@ -6,11 +6,11 @@
 
 ## 1. Project Purpose & Philosophy
 
-**Vanguard** is an interactive, biometric-secured vulnerability shield and package update orchestrator for macOS and Linux.
+**Vanguard** is an interactive vulnerability shield and package update orchestrator for macOS and Linux.
 
 ### Incremental Philosophy (Never a Replacement)
 Vanguard does **not** replace existing tools:
-- **Layer 3:** Vanguard provides Touch ID keepalive, OSV.dev CVE intelligence, SemVer triage, and an ephemeral web dashboard.
+- **Layer 3:** Vanguard provides proactive OSV.dev CVE intelligence, SemVer triage, interactive web dashboard, and privilege keepalive.
 - **Layer 2:** MPM (`meta-package-manager`) provides granular multi-manager inventory abstraction.
 - **Layer 1:** Topgrade and native managers (`brew`, `mise`, `uv`, `pnpm`, `npm`) execute the real work.
 
@@ -22,8 +22,8 @@ Any feature or refactoring must maintain this incremental layering: never rewrit
 
 The repository follows a clean, decoupled architecture:
 
-- **`cmd/vanguard/main.go`**: CLI entrypoint. Handles flags (`--port`, `--no-open`, `--no-sudo`, `--dev`), primes Touch ID via `auth.EnsureSudo()`, starts keepalive goroutine, serves static embedded assets, and opens default browser.
-- **`internal/auth/sudo.go`**: Biometric Touch ID pre-flight (`sudo -v` via `/dev/tty` / terminal) and background keepalive (`sudo -n true` every 40s) so root credentials remain valid throughout long upgrade runs.
+- **`cmd/vanguard/main.go`**: CLI entrypoint. Handles flags (`--port`, `--no-open`, `--no-sudo`, `--dev`), primes root privileges via `auth.EnsureSudo()`, starts keepalive goroutine, serves static embedded assets, and opens default browser.
+- **`internal/auth/sudo.go`**: Privilege pre-flight (`sudo -v` via terminal) and background keepalive (`sudo -n true` every 40s) so root credentials remain valid throughout long upgrade runs.
 - **`internal/security/advisor.go`**: Queries OSV.dev batch API to match outdated package versions against known vulnerabilities (CVEs, GHSAs, CVSS severity). Flags packages with `HasVulnerability = true`, sets `MaxSeverity`, and bubbles them to the top of the update queue.
 - **`internal/domain/`**:
   - `package.go`: Core data models (`Package`, `Vulnerability`, `ScanResult`, `ScanSummary`, `UpgradeEvent`).
