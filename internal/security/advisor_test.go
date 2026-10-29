@@ -24,6 +24,11 @@ func TestMapManagerToEcosystem(t *testing.T) {
 		{"composer", "Packagist"},
 		{"gem", "RubyGems"},
 		{"go", "Go"},
+		{"yarn-berry", "npm"},
+		{"dotnet", "NuGet"},
+		{"pub", "Pub"},
+		{"apk", "Alpine"},
+		{"apt", "Debian"},
 		{"unknown", ""},
 	}
 

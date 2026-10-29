@@ -20,7 +20,7 @@ import (
 	"github.com/jankrloz/vanguard/internal/server"
 )
 
-const Version = "0.1.1"
+const Version = "0.1.2"
 
 func printUsage() {
 	fmt.Printf(`Vanguard v%s — Vulnerability Shield & Package Orchestrator

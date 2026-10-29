@@ -63,27 +63,10 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 		})
 
 		var cmd *exec.Cmd
-		switch mgr {
-		case "brew":
+		if mgr == "" || mgr == "all" {
 			args := append([]string{"upgrade"}, names...)
-			cmd = exec.CommandContext(ctx, "brew", args...)
-		case "cask":
-			args := append([]string{"upgrade", "--cask"}, names...)
-			cmd = exec.CommandContext(ctx, "brew", args...)
-		case "pnpm":
-			args := append([]string{"update", "-g"}, names...)
-			cmd = exec.CommandContext(ctx, "pnpm", args...)
-		case "npm":
-			args := append([]string{"update", "-g"}, names...)
-			cmd = exec.CommandContext(ctx, "npm", args...)
-		case "uv", "uvx":
-			args := append([]string{"tool", "upgrade"}, names...)
-			cmd = exec.CommandContext(ctx, "uv", args...)
-		case "mise":
-			args := append([]string{"upgrade"}, names...)
-			cmd = exec.CommandContext(ctx, "mise", args...)
-		default:
-			// Fallback to mpm granular upgrade
+			cmd = exec.CommandContext(ctx, "mpm", args...)
+		} else {
 			args := append([]string{"--" + mgr, "upgrade"}, names...)
 			cmd = exec.CommandContext(ctx, "mpm", args...)
 		}

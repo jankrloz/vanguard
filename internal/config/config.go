@@ -30,7 +30,7 @@ func DefaultConfig() Config {
 		},
 		Packages: PackagesConfig{
 			Pinned:          []string{},
-			IgnoredManagers: []string{"cpan", "gem"},
+			IgnoredManagers: []string{},
 		},
 	}
 }

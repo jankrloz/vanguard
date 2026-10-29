@@ -68,18 +68,28 @@ func NewAdvisor() *Advisor {
 // MapManagerToEcosystem maps local package manager to OSV ecosystem.
 func MapManagerToEcosystem(mgr string) string {
 	switch strings.ToLower(mgr) {
-	case "npm", "pnpm", "bun":
+	case "npm", "pnpm", "bun", "yarn", "yarn-berry":
 		return "npm"
-	case "pip", "uv", "uvx":
+	case "pip", "pipx", "uv", "uvx", "poetry", "pdm", "conda", "mamba", "pixi":
 		return "PyPI"
 	case "cargo":
 		return "crates.io"
 	case "composer":
 		return "Packagist"
-	case "gem":
+	case "gem", "bundler":
 		return "RubyGems"
 	case "go":
 		return "Go"
+	case "nuget", "dotnet":
+		return "NuGet"
+	case "pub", "flutter", "dart":
+		return "Pub"
+	case "hex", "mix":
+		return "Hex"
+	case "apt", "nala", "aptitude", "deb-get":
+		return "Debian"
+	case "apk":
+		return "Alpine"
 	default:
 		return ""
 	}
