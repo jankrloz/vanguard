@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jankrloz/vanguard/internal/config"
 	"github.com/jankrloz/vanguard/internal/domain"
 	"github.com/jankrloz/vanguard/internal/security"
 )
@@ -20,25 +21,39 @@ func New() *Scanner {
 	return &Scanner{}
 }
 
-// Scan queries mpm to find all outdated packages across all package managers
-// and enriches results with OSV.dev CVE vulnerability intelligence.
+// Scan queries mpm to find all outdated packages across all package managers,
+// enforces configuration pins/ignores, and enriches results with OSV.dev CVE intelligence.
 func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
+	cfg, _ := config.Load()
+
 	// 1. Discover outdated packages purely via mpm
-	packages, err := s.scanMPM(ctx)
+	packages, err := s.scanMPM(ctx, cfg.Packages.IgnoredManagers)
 	if err != nil {
 		return nil, fmt.Errorf("mpm scan failed: %w", err)
 	}
 
-	// 2. Enrich with OSV.dev vulnerability intelligence
+	// 2. Apply persistent config pins
+	for i := range packages {
+		if cfg.IsPinned(packages[i].ID) || cfg.IsPinned(packages[i].Name) {
+			packages[i].Pinned = true
+			packages[i].Selected = false
+		}
+	}
+
+	// 3. Enrich with OSV.dev vulnerability intelligence
 	advisor := security.NewAdvisor()
 	packages = advisor.EnrichPackages(ctx, packages)
 
 	safeCount := 0
 	majorCount := 0
+	pinnedCount := 0
 	securityFixCount := 0
 
-	// 3. Calculate summaries
+	// 4. Calculate summaries
 	for _, p := range packages {
+		if p.Pinned {
+			pinnedCount++
+		}
 		if p.Safe {
 			safeCount++
 		}
@@ -50,7 +65,7 @@ func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 		}
 	}
 
-	// 4. Sort: vulnerable packages float to the top
+	// 5. Sort: vulnerable packages float to the top
 	for i := 0; i < len(packages); i++ {
 		for j := i + 1; j < len(packages); j++ {
 			if !packages[i].HasVulnerability && packages[j].HasVulnerability {
@@ -65,22 +80,28 @@ func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 			TotalPackages:    len(packages),
 			SafeCount:        safeCount,
 			MajorCount:       majorCount,
-			PinnedCount:      0,
+			PinnedCount:      pinnedCount,
 			SecurityFixCount: securityFixCount,
 		},
 	}, nil
 }
 
-func (s *Scanner) scanMPM(ctx context.Context) ([]domain.Package, error) {
+func (s *Scanner) scanMPM(ctx context.Context, ignoredManagers []string) ([]domain.Package, error) {
 	scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(scanCtx, "mpm",
-		"--no-cpan", "--no-gem",
+	args := []string{
 		"--accessible", "--no-color",
-		"outdated",
-		"--columns", "manager_id,package_id,installed_version,latest_version",
-	)
+	}
+
+	// Add ignore flags
+	for _, ign := range ignoredManagers {
+		args = append(args, "--no-"+ign)
+	}
+
+	args = append(args, "outdated", "--columns", "manager_id,package_id,installed_version,latest_version")
+
+	cmd := exec.CommandContext(scanCtx, "mpm", args...)
 
 	out, err := cmd.Output()
 	if err != nil && len(out) == 0 {

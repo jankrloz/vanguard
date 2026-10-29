@@ -20,23 +20,69 @@ import (
 	"github.com/jankrloz/vanguard/internal/server"
 )
 
-const Version = "0.1.0"
+const Version = "0.1.1"
+
+func printUsage() {
+	fmt.Printf(`Vanguard v%s — Vulnerability Shield & Package Orchestrator
+
+Usage:
+  vg [command] [flags]
+
+Commands:
+  check      Scan packages and print security status table (exits 1 on urgent CVEs)
+  apply      Execute non-interactive CLI package upgrades directly in terminal
+  history    View local persistent audit log (~/.local/state/vanguard/history.jsonl)
+  sweep      Run deep system-wide sweep via Topgrade
+  monitor    Run background security monitor daemon with macOS alerts
+  dashboard  Launch interactive web control dashboard (default)
+  version    Print Vanguard version and platform information
+
+Dashboard Flags:
+  -port int     HTTP server port (default 9099)
+  -no-open      Do not automatically open dashboard in browser
+  -no-sudo      Skip privilege pre-flight priming
+  -dev          Run in development mode (reverse proxy to Vite dev server)
+`, Version)
+}
 
 func main() {
-	devMode := flag.Bool("dev", false, "Enable development mode (reverse proxy to Vite dev server)")
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if len(os.Args) > 1 {
+		cmd := os.Args[1]
+		switch cmd {
+		case "check":
+			os.Exit(runCheck(ctx, os.Args[2:]))
+		case "apply":
+			os.Exit(runApply(ctx, os.Args[2:]))
+		case "history":
+			os.Exit(runHistory(os.Args[2:]))
+		case "sweep", "topgrade":
+			os.Exit(runSweep(ctx))
+		case "monitor":
+			os.Exit(runMonitor(ctx, os.Args[2:]))
+		case "version", "-v", "--version":
+			fmt.Printf("Vanguard v%s (%s/%s)\n", Version, runtime.GOOS, runtime.GOARCH)
+			return
+		case "help", "-h", "--help":
+			printUsage()
+			return
+		case "dashboard", "web", "ui":
+			// Strip subcommand and parse dashboard flags
+			os.Args = append([]string{os.Args[0]}, os.Args[2:]...)
+		}
+	}
+
+	runDashboard(ctx)
+}
+
+func runDashboard(ctx context.Context) {
+	devMode := flag.Bool("dev", false, "Enable development mode")
 	port := flag.Int("port", 9099, "HTTP server port (0 for random open port)")
 	noOpen := flag.Bool("no-open", false, "Do not automatically open browser on startup")
 	noSudo := flag.Bool("no-sudo", false, "Skip privilege pre-flight priming")
-	showVersion := flag.Bool("version", false, "Print Vanguard version and exit")
 	flag.Parse()
-
-	if *showVersion {
-		fmt.Printf("Vanguard v%s (%s/%s)\n", Version, runtime.GOOS, runtime.GOARCH)
-		return
-	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	fmt.Println("\n  ▲ VANGUARD — Vulnerability Shield & Package Orchestrator")
 	fmt.Println("  ────────────────────────────────────────────────────────")
@@ -74,7 +120,6 @@ func main() {
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
 	if err != nil {
-		// Fallback to random free port
 		listener, err = net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  ✗ Failed to bind listener: %v\n", err)

@@ -36,6 +36,11 @@ func (m *mockExecutor) ExecuteClean(ctx context.Context, onEvent executor.EventC
 	return nil
 }
 
+func (m *mockExecutor) ExecuteTopgrade(ctx context.Context, onEvent executor.EventCallback) error {
+	onEvent(domain.UpgradeEvent{Type: "complete", Message: "topgrade ok"})
+	return nil
+}
+
 func TestServerEndpoints(t *testing.T) {
 	scanner := &mockScanner{
 		result: &domain.ScanResult{
@@ -102,5 +107,30 @@ func TestServerEndpoints(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("POST /api/upgrade = %d, want 200: %s", w.Code, w.Body.String())
+	}
+
+	// 4. Test /api/topgrade
+	req = httptest.NewRequest("POST", "/api/topgrade", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST /api/topgrade = %d, want 200: %s", w.Code, w.Body.String())
+	}
+
+	// 5. Test /api/history
+	req = httptest.NewRequest("GET", "/api/history?limit=10", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /api/history = %d, want 200: %s", w.Code, w.Body.String())
+	}
+
+	// 6. Test /api/config/pin
+	pinBody, _ := json.Marshal(map[string]string{"package_id": "npm:test-pkg"})
+	req = httptest.NewRequest("POST", "/api/config/pin", bytes.NewReader(pinBody))
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("POST /api/config/pin = %d, want 200: %s", w.Code, w.Body.String())
 	}
 }

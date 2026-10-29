@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Header } from "./components/header";
 import { MetricBar } from "./components/metric-bar";
 import { PackageTable } from "./components/package-table";
 import { LogDrawer } from "./components/log-drawer";
+import { HistoryModal } from "./components/history-modal";
 import {
   fetchStatus,
   fetchOutdated,
   triggerUpgrade,
   triggerClean,
+  triggerTopgrade,
+  togglePin,
   subscribeToEvents,
 } from "./lib/api";
 import type { Package, ScanSummary, SystemStatus, UpgradeEvent } from "./lib/types";
@@ -27,6 +30,7 @@ export function App() {
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [events, setEvents] = useState<UpgradeEvent[]>([]);
   const [isLogOpen, setIsLogOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load status and packages on mount
@@ -42,26 +46,22 @@ export function App() {
       if (sysStatus) setStatus(sysStatus);
 
       // Normalize package selection: preselect safe OR vulnerable packages
-      const pkgs = (scanResult.packages || []).map((p) => {
-        const safe = p.Safe !== undefined ? p.Safe : p.safe;
-        const pinned = p.Pinned !== undefined ? p.Pinned : p.pinned;
-        const hasVuln = p.HasVulnerability || p.has_vulnerability;
-        return {
-          ...p,
-          selected: (safe || hasVuln) && !pinned,
-        };
-      });
+      const pkgs: Package[] = (scanResult.packages || []).map((p) => ({
+        ...p,
+        selected: Boolean((p.safe || p.has_vulnerability) && !p.pinned),
+      }));
 
       setPackages(pkgs);
       setSummary(scanResult.summary || {
         total_packages: pkgs.length,
-        safe_count: pkgs.filter((p) => p.Safe || p.safe).length,
-        major_count: pkgs.filter((p) => (p.ChangeType || p.change_type) === "major").length,
-        pinned_count: pkgs.filter((p) => p.Pinned || p.pinned).length,
-        security_fix_count: pkgs.filter((p) => p.HasVulnerability || p.has_vulnerability).length,
+        safe_count: pkgs.filter((p) => p.safe).length,
+        major_count: pkgs.filter((p) => p.change_type === "major").length,
+        pinned_count: pkgs.filter((p) => p.pinned).length,
+        security_fix_count: pkgs.filter((p) => p.has_vulnerability).length,
       });
-    } catch (err: any) {
-      setError(err?.message || "Failed to load package information");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load package information";
+      setError(msg);
     } finally {
       setIsScanning(false);
     }
@@ -91,8 +91,7 @@ export function App() {
   const handleTogglePackage = (id: string) => {
     setPackages((prev) =>
       prev.map((p) => {
-        const pkgId = p.ID || p.id;
-        if (pkgId === id) {
+        if (p.id === id) {
           return { ...p, selected: !p.selected };
         }
         return p;
@@ -102,30 +101,19 @@ export function App() {
 
   const handleSelectSafe = () => {
     setPackages((prev) =>
-      prev.map((p) => {
-        const safe = p.Safe !== undefined ? p.Safe : p.safe;
-        const pinned = p.Pinned !== undefined ? p.Pinned : p.pinned;
-        return { ...p, selected: safe && !pinned };
-      })
+      prev.map((p) => ({ ...p, selected: p.safe && !p.pinned }))
     );
   };
 
   const handleSelectSecurity = () => {
     setPackages((prev) =>
-      prev.map((p) => {
-        const hasVuln = p.HasVulnerability || p.has_vulnerability;
-        const pinned = p.Pinned !== undefined ? p.Pinned : p.pinned;
-        return { ...p, selected: Boolean(hasVuln && !pinned) };
-      })
+      prev.map((p) => ({ ...p, selected: Boolean(p.has_vulnerability && !p.pinned) }))
     );
   };
 
   const handleSelectAll = () => {
     setPackages((prev) =>
-      prev.map((p) => {
-        const pinned = p.Pinned !== undefined ? p.Pinned : p.pinned;
-        return { ...p, selected: !pinned };
-      })
+      prev.map((p) => ({ ...p, selected: !p.pinned }))
     );
   };
 
@@ -142,10 +130,11 @@ export function App() {
     setEvents([]);
 
     try {
-      const ids = selected.map((p) => p.ID || p.id || p.Name || p.name);
+      const ids = selected.map((p) => p.id);
       await triggerUpgrade(ids);
-    } catch (err: any) {
-      setError(err?.message || "Upgrade request failed");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Upgrade request failed";
+      setError(msg);
       setIsUpgrading(false);
     }
   };
@@ -157,9 +146,49 @@ export function App() {
 
     try {
       await triggerClean();
-    } catch (err: any) {
-      setError(err?.message || "Clean request failed");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Clean request failed";
+      setError(msg);
       setIsUpgrading(false);
+    }
+  };
+
+  const handleTopgrade = async () => {
+    setIsUpgrading(true);
+    setIsLogOpen(true);
+    setEvents([]);
+
+    try {
+      await triggerTopgrade();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Topgrade sweep request failed";
+      setError(msg);
+      setIsUpgrading(false);
+    }
+  };
+
+  const handleTogglePin = async (id: string) => {
+    try {
+      const res = await togglePin(id);
+      setPackages((prev) =>
+        prev.map((p) => {
+          if (p.id === id) {
+            return {
+              ...p,
+              pinned: res.pinned,
+              selected: res.pinned ? false : p.selected,
+            };
+          }
+          return p;
+        })
+      );
+      setSummary((prev) => ({
+        ...prev,
+        pinned_count: res.pinned ? prev.pinned_count + 1 : Math.max(0, prev.pinned_count - 1),
+      }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to toggle package pin";
+      setError(msg);
     }
   };
 
@@ -176,6 +205,8 @@ export function App() {
         onScan={() => loadData(true)}
         onUpgrade={handleUpgrade}
         onClean={handleClean}
+        onTopgrade={handleTopgrade}
+        onOpenHistory={() => setIsHistoryOpen(true)}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-6 space-y-6">
@@ -199,6 +230,7 @@ export function App() {
         <PackageTable
           packages={packages}
           onTogglePackage={handleTogglePackage}
+          onTogglePin={handleTogglePin}
           onSelectSafe={handleSelectSafe}
           onSelectSecurity={handleSelectSecurity}
           onSelectAll={handleSelectAll}
@@ -224,6 +256,12 @@ export function App() {
         events={events}
         onClose={() => setIsLogOpen(false)}
         onClear={() => setEvents([])}
+      />
+
+      {/* Audit History Modal */}
+      <HistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
       />
     </div>
   );

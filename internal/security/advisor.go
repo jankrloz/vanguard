@@ -30,6 +30,7 @@ type OSVBatchResponse struct {
 		Vulns []struct {
 			ID       string   `json:"id"`
 			Summary  string   `json:"summary"`
+			Details  string   `json:"details"`
 			Upstream []string `json:"upstream"`
 			Severity []struct {
 				Type  string `json:"type"`
@@ -38,6 +39,14 @@ type OSVBatchResponse struct {
 			DatabaseSpecific struct {
 				Severity string `json:"severity"`
 			} `json:"database_specific"`
+			Affected []struct {
+				Ranges []struct {
+					Events []struct {
+						Introduced string `json:"introduced"`
+						Fixed      string `json:"fixed"`
+					} `json:"events"`
+				} `json:"ranges"`
+			} `json:"affected"`
 		} `json:"vulns"`
 	} `json:"results"`
 }
@@ -136,6 +145,14 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 				id = v.Upstream[0] + " (" + v.ID + ")"
 			}
 
+			summary := v.Summary
+			if summary == "" && v.Details != "" {
+				summary = v.Details
+				if len(summary) > 80 {
+					summary = summary[:80] + "..."
+				}
+			}
+
 			sev := strings.ToUpper(v.DatabaseSpecific.Severity)
 			if sev == "" {
 				sev = "HIGH"
@@ -149,17 +166,52 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 				maxSeverity = "MODERATE"
 			}
 
+			// Find fixed version from ranges
+			fixedIn := ""
+			for _, aff := range v.Affected {
+				for _, rng := range aff.Ranges {
+					for _, ev := range rng.Events {
+						if ev.Fixed != "" {
+							fixedIn = ev.Fixed
+							break
+						}
+					}
+					if fixedIn != "" {
+						break
+					}
+				}
+				if fixedIn != "" {
+					break
+				}
+			}
+
+			isMitigated := true
+			if fixedIn != "" {
+				// If target version is parsed and less than fixed version, not mitigated
+				tMaj, tMin, tPatch, tOk := domain.ParseVersion(pkgs[i].LatestVersion)
+				fMaj, fMin, fPatch, fOk := domain.ParseVersion(fixedIn)
+				if tOk && fOk {
+					if tMaj < fMaj || (tMaj == fMaj && tMin < fMin) || (tMaj == fMaj && tMin == fMin && tPatch < fPatch) {
+						isMitigated = false
+					}
+				}
+			} else {
+				// No upstream fix recorded yet = unmitigated zero-day
+				isMitigated = false
+			}
+
 			vulns = append(vulns, domain.Vulnerability{
-				ID:       id,
-				Summary:  v.Summary,
-				Severity: sev,
+				ID:          id,
+				Summary:     summary,
+				Severity:    sev,
+				FixedIn:     fixedIn,
+				IsMitigated: isMitigated,
 			})
 		}
 
 		pkgs[i].Vulnerabilities = vulns
 		pkgs[i].HasVulnerability = true
 		pkgs[i].MaxSeverity = maxSeverity
-		// Security fixes should be urgently prioritized and pre-checked
 		pkgs[i].Selected = true
 	}
 

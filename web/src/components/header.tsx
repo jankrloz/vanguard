@@ -1,5 +1,5 @@
-import React from "react";
-import { ShieldCheck, ShieldAlert, RefreshCw, Trash2, ArrowUpCircle, Flame } from "lucide-react";
+import type { FC } from "react";
+import { ShieldCheck, ShieldAlert, RefreshCw, Trash2, ArrowUpCircle, Flame, Zap, History } from "lucide-react";
 import type { SystemStatus } from "../lib/types";
 
 interface HeaderProps {
@@ -11,9 +11,11 @@ interface HeaderProps {
   onScan: () => void;
   onUpgrade: () => void;
   onClean: () => void;
+  onTopgrade: () => void;
+  onOpenHistory: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({
+export const Header: FC<HeaderProps> = ({
   status,
   selectedCount,
   securityCount,
@@ -22,6 +24,8 @@ export const Header: React.FC<HeaderProps> = ({
   onScan,
   onUpgrade,
   onClean,
+  onTopgrade,
+  onOpenHistory,
 }) => {
   return (
     <header className="border-b border-zinc-800/80 bg-zinc-950/70 backdrop-blur px-6 py-4 sticky top-0 z-30">
@@ -66,15 +70,34 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onOpenHistory}
+            title="View upgrade audit history"
+            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800/80 border border-zinc-800 px-2.5 py-1.5 rounded-md transition-colors"
+          >
+            <History className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">History</span>
+          </button>
+
+          <button
+            onClick={onTopgrade}
+            disabled={isUpgrading}
+            title="Run deep system-wide sweep via Topgrade"
+            className="flex items-center gap-1.5 text-xs text-amber-300 hover:text-amber-100 bg-amber-950/40 hover:bg-amber-900/50 border border-amber-800/60 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-50"
+          >
+            <Zap className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">Sweep</span>
+          </button>
+
           <button
             onClick={onClean}
             disabled={isUpgrading}
             title="Clean package caches, old versions, and logs"
-            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800/80 border border-zinc-800 px-3 py-1.5 rounded-md transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800/80 border border-zinc-800 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-50"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>Clean</span>
+            <span className="hidden sm:inline">Clean</span>
           </button>
 
           <button

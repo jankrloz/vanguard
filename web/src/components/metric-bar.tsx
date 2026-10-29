@@ -1,5 +1,5 @@
-import React from "react";
-import { ShieldAlert, Flame } from "lucide-react";
+import type { FC } from "react";
+import { Flame } from "lucide-react";
 import type { ScanSummary } from "../lib/types";
 
 interface MetricBarProps {
@@ -7,7 +7,7 @@ interface MetricBarProps {
   selectedCount: number;
 }
 
-export const MetricBar: React.FC<MetricBarProps> = ({ summary, selectedCount }) => {
+export const MetricBar: FC<MetricBarProps> = ({ summary, selectedCount }) => {
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
       {/* Total */}

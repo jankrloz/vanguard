@@ -8,8 +8,10 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jankrloz/vanguard/internal/domain"
+	"github.com/jankrloz/vanguard/internal/history"
 )
 
 type EventCallback func(event domain.UpgradeEvent)
@@ -75,7 +77,6 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 			args := append([]string{"update", "-g"}, names...)
 			cmd = exec.CommandContext(ctx, "npm", args...)
 		case "uv", "uvx":
-			// If pip, uv self-update or tool update
 			args := append([]string{"tool", "upgrade"}, names...)
 			cmd = exec.CommandContext(ctx, "uv", args...)
 		case "mise":
@@ -88,7 +89,9 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 		}
 
 		err := e.runStreamingCommand(cmd, onEvent)
+		status := "ok"
 		if err != nil {
+			status = "failed"
 			onEvent(domain.UpgradeEvent{
 				Type:    "package_done",
 				Package: mgr,
@@ -103,6 +106,18 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 				Message: fmt.Sprintf("[%s] successfully upgraded", mgr),
 			})
 		}
+
+		// Record in persistent audit history
+		for _, p := range pkgList {
+			_ = history.Append(history.Entry{
+				Timestamp:   time.Now(),
+				PackageID:   p.ID,
+				Manager:     p.Manager,
+				FromVersion: p.CurrentVersion,
+				ToVersion:   p.LatestVersion,
+				Status:      status,
+			})
+		}
 	}
 
 	onEvent(domain.UpgradeEvent{
@@ -110,6 +125,62 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 		Message: "All requested upgrades finished",
 	})
 
+	return nil
+}
+
+// ExecuteTopgrade triggers a deep system sweep through Topgrade.
+func (e *Executor) ExecuteTopgrade(ctx context.Context, onEvent EventCallback) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	onEvent(domain.UpgradeEvent{
+		Type:    "start",
+		Message: "Starting Topgrade system-wide sweep...",
+	})
+
+	topgradePath, err := exec.LookPath("topgrade")
+	if err != nil {
+		onEvent(domain.UpgradeEvent{
+			Type:    "error",
+			Message: "topgrade executable not found in PATH",
+		})
+		return fmt.Errorf("topgrade not installed: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, topgradePath, "--yes")
+	err = e.runStreamingCommand(cmd, onEvent)
+
+	status := "ok"
+	if err != nil {
+		status = "failed"
+		onEvent(domain.UpgradeEvent{
+			Type:    "package_done",
+			Package: "topgrade",
+			Status:  "failed",
+			Message: fmt.Sprintf("Topgrade sweep failed: %v", err),
+		})
+	} else {
+		onEvent(domain.UpgradeEvent{
+			Type:    "package_done",
+			Package: "topgrade",
+			Status:  "ok",
+			Message: "Topgrade sweep successfully completed",
+		})
+	}
+
+	_ = history.Append(history.Entry{
+		Timestamp:   time.Now(),
+		PackageID:   "system:topgrade",
+		Manager:     "topgrade",
+		FromVersion: "sweep",
+		ToVersion:   "latest",
+		Status:      status,
+	})
+
+	onEvent(domain.UpgradeEvent{
+		Type:    "complete",
+		Message: "Topgrade sweep complete",
+	})
 	return nil
 }
 
@@ -123,7 +194,6 @@ func (e *Executor) ExecuteClean(ctx context.Context, onEvent EventCallback) erro
 		Message: "Starting system cleanup...",
 	})
 
-	// Check if `mo` (Mole) is available
 	if path, err := exec.LookPath("mo"); err == nil && path != "" {
 		onEvent(domain.UpgradeEvent{
 			Type:    "log",
@@ -132,7 +202,6 @@ func (e *Executor) ExecuteClean(ctx context.Context, onEvent EventCallback) erro
 		cmd := exec.CommandContext(ctx, "mo", "clean", "--dry-run=false")
 		_ = e.runStreamingCommand(cmd, onEvent)
 	} else {
-		// Fallback to brew cleanup
 		onEvent(domain.UpgradeEvent{
 			Type:    "log",
 			Message: "Running `brew cleanup -s`...",

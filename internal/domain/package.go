@@ -10,9 +10,11 @@ const (
 )
 
 type Vulnerability struct {
-	ID       string `json:"id"`       // CVE-202X-XXXX or GHSA-XXXX
-	Summary  string `json:"summary"`  // e.g. "Remote Code Execution"
-	Severity string `json:"severity"` // "CRITICAL", "HIGH", "MODERATE", "LOW"
+	ID          string `json:"id"`                 // CVE-202X-XXXX or GHSA-XXXX
+	Summary     string `json:"summary"`            // e.g. "Remote Code Execution"
+	Severity    string `json:"severity"`           // "CRITICAL", "HIGH", "MODERATE", "LOW"
+	FixedIn     string `json:"fixed_in,omitempty"` // Version that fixes the CVE
+	IsMitigated bool   `json:"is_mitigated"`       // True if candidate update fixes the CVE
 }
 
 type Package struct {

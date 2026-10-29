@@ -10,11 +10,14 @@ import (
 	"net/url"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/jankrloz/vanguard/internal/config"
 	"github.com/jankrloz/vanguard/internal/domain"
 	"github.com/jankrloz/vanguard/internal/executor"
+	"github.com/jankrloz/vanguard/internal/history"
 )
 
 // Scanner interface decouples the server from package scanning engines.
@@ -26,6 +29,7 @@ type Scanner interface {
 type Executor interface {
 	ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, onEvent executor.EventCallback) error
 	ExecuteClean(ctx context.Context, onEvent executor.EventCallback) error
+	ExecuteTopgrade(ctx context.Context, onEvent executor.EventCallback) error
 }
 
 type Config struct {
@@ -62,6 +66,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/outdated", s.handleOutdated)
 	s.mux.HandleFunc("/api/upgrade", s.handleUpgrade)
 	s.mux.HandleFunc("/api/clean", s.handleClean)
+	s.mux.HandleFunc("/api/topgrade", s.handleTopgrade)
+	s.mux.HandleFunc("/api/history", s.handleHistory)
+	s.mux.HandleFunc("/api/config/pin", s.handlePin)
 	s.mux.HandleFunc("/api/events", s.handleEvents)
 
 	// Frontend handler
@@ -249,6 +256,84 @@ func (s *Server) handleClean(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status":  "started",
 		"message": "Cleanup job queued",
+	})
+}
+
+func (s *Server) handleTopgrade(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.cfg.Executor == nil {
+		http.Error(w, "Executor not configured", http.StatusInternalServerError)
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+
+		_ = s.cfg.Executor.ExecuteTopgrade(ctx, func(ev domain.UpgradeEvent) {
+			s.broadcastEvent(ev)
+		})
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":  "started",
+		"message": "Topgrade system sweep queued",
+	})
+}
+
+func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
+	limit := 50
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	entries, err := history.ReadRecent(limit)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(entries)
+}
+
+func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		PackageID string `json:"package_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PackageID == "" {
+		http.Error(w, "package_id is required", http.StatusBadRequest)
+		return
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	pinned, err := cfg.TogglePin(req.PackageID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"package_id": req.PackageID,
+		"pinned":     pinned,
 	})
 }
 

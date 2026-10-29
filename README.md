@@ -85,14 +85,47 @@ up
 
 ---
 
-## 🛠️ CLI Options
+## 🛠️ CLI Modes & Commands
+
+```bash
+# Launch interactive web dashboard (default)
+vg
+vg dashboard
+
+# Headless security & outdated scan (exits 1 if critical CVEs found)
+vg check
+vg check --security-only
+
+# Headless non-interactive package upgrades directly in terminal
+vg apply --yes
+vg apply --security-only -y
+vg apply --all -y
+
+# View persistent upgrade audit history
+vg history --limit 30
+
+# Run deep system-wide sweep via Topgrade
+vg sweep
+
+# Run background security monitor with macOS notifications
+vg monitor --interval 1h
+```
+
+### Dashboard Flags
 
 | Flag | Default | Description |
 |---|---|---|
 | `--port <int>` | `9099` | Local HTTP server port (uses random free port if taken) |
 | `--no-open` | `false` | Do not automatically open the dashboard in default browser |
-| `--no-sudo` | `false` | Skip Touch ID / sudo pre-flight authentication |
+| `--no-sudo` | `false` | Skip privilege pre-flight priming |
 | `--dev` | `false` | Reverse-proxy to Vite HMR server (`http://127.0.0.1:5173`) |
+
+---
+
+## ⚙️ Configuration & Audit Trail
+
+- **Configuration & Pins:** Stored in `~/.config/vanguard/config.toml` (persists pinned packages that should never be upgraded, and ignored managers).
+- **Audit History:** Stored in `~/.local/state/vanguard/history.jsonl` (JSONL log recording timestamp, package ID, manager, version transitions, and execution outcome).
 
 ---
 

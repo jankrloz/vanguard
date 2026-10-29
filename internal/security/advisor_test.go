@@ -2,7 +2,6 @@ package security
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -38,49 +37,36 @@ func TestMapManagerToEcosystem(t *testing.T) {
 
 func TestEnrichPackages(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := OSVBatchResponse{
-			Results: []struct {
-				Vulns []struct {
-					ID       string   `json:"id"`
-					Summary  string   `json:"summary"`
-					Upstream []string `json:"upstream"`
-					Severity []struct {
-						Type  string `json:"type"`
-						Score string `json:"score"`
-					} `json:"severity"`
-					DatabaseSpecific struct {
-						Severity string `json:"severity"`
-					} `json:"database_specific"`
-				} `json:"vulns"`
-			}{
+		w.Header().Set("Content-Type", "application/json")
+		mockJSON := `{
+			"results": [
 				{
-					Vulns: []struct {
-						ID       string   `json:"id"`
-						Summary  string   `json:"summary"`
-						Upstream []string `json:"upstream"`
-						Severity []struct {
-							Type  string `json:"type"`
-							Score string `json:"score"`
-						} `json:"severity"`
-						DatabaseSpecific struct {
-							Severity string `json:"severity"`
-						} `json:"database_specific"`
-					}{
+					"vulns": [
 						{
-							ID:       "GHSA-1234",
-							Summary:  "Remote Code Execution",
-							Upstream: []string{"CVE-2024-9999"},
-							DatabaseSpecific: struct {
-								Severity string `json:"severity"`
-							}{
-								Severity: "CRITICAL",
+							"id": "GHSA-1234",
+							"summary": "Remote Code Execution",
+							"upstream": ["CVE-2024-9999"],
+							"database_specific": {
+								"severity": "CRITICAL"
 							},
-						},
-					},
-				},
-			},
-		}
-		_ = json.NewEncoder(w).Encode(resp)
+							"affected": [
+								{
+									"ranges": [
+										{
+											"events": [
+												{ "introduced": "0" },
+												{ "fixed": "1.0.1" }
+											]
+										}
+									]
+								}
+							]
+						}
+					]
+				}
+			]
+		}`
+		_, _ = w.Write([]byte(mockJSON))
 	}))
 	defer server.Close()
 
@@ -120,5 +106,8 @@ func TestEnrichPackages(t *testing.T) {
 	}
 	if len(p.Vulnerabilities) != 1 || p.Vulnerabilities[0].ID != "CVE-2024-9999 (GHSA-1234)" {
 		t.Errorf("unexpected vulnerability ID: %+v", p.Vulnerabilities)
+	}
+	if p.Vulnerabilities[0].FixedIn != "1.0.1" {
+		t.Errorf("expected FixedIn 1.0.1, got %s", p.Vulnerabilities[0].FixedIn)
 	}
 }

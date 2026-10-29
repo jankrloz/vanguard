@@ -1,19 +1,21 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo, type FC, type MouseEvent } from "react";
 import { Search, CheckSquare, Square, AlertTriangle, ShieldCheck, Pin, Flame, ChevronDown, ChevronRight } from "lucide-react";
-import type { Package } from "../lib/types";
+import type { Package, Vulnerability } from "../lib/types";
 
 interface PackageTableProps {
   packages: Package[];
   onTogglePackage: (id: string) => void;
+  onTogglePin: (id: string) => void;
   onSelectSafe: () => void;
   onSelectSecurity: () => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
 }
 
-export const PackageTable: React.FC<PackageTableProps> = ({
+export const PackageTable: FC<PackageTableProps> = ({
   packages,
   onTogglePackage,
+  onTogglePin,
   onSelectSafe,
   onSelectSecurity,
   onSelectAll,
@@ -26,21 +28,21 @@ export const PackageTable: React.FC<PackageTableProps> = ({
 
   const managers = useMemo(() => {
     const set = new Set<string>();
-    packages.forEach((p) => set.add(p.Manager || p.manager));
+    packages.forEach((p) => set.add(p.manager));
     return Array.from(set).sort();
   }, [packages]);
 
   const securityPackagesCount = useMemo(() => {
-    return packages.filter((p) => p.HasVulnerability || p.has_vulnerability).length;
+    return packages.filter((p) => p.has_vulnerability).length;
   }, [packages]);
 
   const filteredPackages = useMemo(() => {
     return packages.filter((p) => {
-      const name = p.Name || p.name;
-      const mgr = p.Manager || p.manager;
-      const changeType = p.ChangeType || p.change_type;
-      const safe = p.Safe !== undefined ? p.Safe : p.safe;
-      const hasVuln = p.HasVulnerability || p.has_vulnerability;
+      const name = p.name;
+      const mgr = p.manager;
+      const changeType = p.change_type;
+      const safe = p.safe;
+      const hasVuln = p.has_vulnerability;
 
       if (search && !name.toLowerCase().includes(search.toLowerCase()) && !mgr.toLowerCase().includes(search.toLowerCase())) {
         return false;
@@ -59,7 +61,7 @@ export const PackageTable: React.FC<PackageTableProps> = ({
   const grouped = useMemo(() => {
     const map = new Map<string, Package[]>();
     filteredPackages.forEach((p) => {
-      const mgr = p.Manager || p.manager;
+      const mgr = p.manager;
       const list = map.get(mgr) || [];
       list.push(p);
       map.set(mgr, list);
@@ -67,7 +69,7 @@ export const PackageTable: React.FC<PackageTableProps> = ({
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [filteredPackages]);
 
-  const toggleExpand = (id: string, e: React.MouseEvent) => {
+  const toggleExpand = (id: string, e: MouseEvent) => {
     e.stopPropagation();
     setExpandedVulns((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -216,16 +218,16 @@ export const PackageTable: React.FC<PackageTableProps> = ({
               {/* Table */}
               <div className="divide-y divide-zinc-800/50">
                 {items.map((pkg) => {
-                  const id = pkg.ID || pkg.id;
-                  const name = pkg.Name || pkg.name;
-                  const cur = pkg.CurrentVersion || pkg.current_version;
-                  const lat = pkg.LatestVersion || pkg.latest_version;
-                  const changeType = pkg.ChangeType || pkg.change_type;
-                  const pinned = pkg.Pinned !== undefined ? pkg.Pinned : pkg.pinned;
-                  const selected = pkg.Selected !== undefined ? pkg.Selected : pkg.selected;
-                  const hasVuln = pkg.HasVulnerability || pkg.has_vulnerability;
-                  const vulns = pkg.Vulnerabilities || pkg.vulnerabilities || [];
-                  const maxSev = pkg.MaxSeverity || pkg.max_severity || "HIGH";
+                  const id = pkg.id;
+                  const name = pkg.name;
+                  const cur = pkg.current_version;
+                  const lat = pkg.latest_version;
+                  const changeType = pkg.change_type;
+                  const pinned = pkg.pinned;
+                  const selected = pkg.selected;
+                  const hasVuln = pkg.has_vulnerability;
+                  const vulns = pkg.vulnerabilities || [];
+                  const maxSev = pkg.max_severity || "HIGH";
                   const isExpanded = expandedVulns[id];
 
                   return (
@@ -279,11 +281,22 @@ export const PackageTable: React.FC<PackageTableProps> = ({
                                 </span>
                               )}
 
-                              {pinned && (
-                                <span className="flex items-center gap-1 text-[10px] font-mono bg-zinc-800 text-zinc-400 border border-zinc-700/60 px-1.5 py-0.2 rounded">
-                                  <Pin className="w-2.5 h-2.5" /> Pinned
-                                </span>
-                              )}
+                              <button
+                                type="button"
+                                title={pinned ? "Unpin package" : "Pin package (keep current version)"}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onTogglePin(id);
+                                }}
+                                className={`flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded transition-colors ${
+                                  pinned
+                                    ? "bg-amber-950/80 text-amber-300 border border-amber-800 hover:bg-amber-900"
+                                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/80 border border-transparent"
+                                }`}
+                              >
+                                <Pin className="w-2.5 h-2.5" />
+                                <span>{pinned ? "Pinned" : "Pin"}</span>
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -327,17 +340,35 @@ export const PackageTable: React.FC<PackageTableProps> = ({
 
                       {/* Expandable CVE details */}
                       {hasVuln && isExpanded && (
-                        <div className="bg-rose-950/20 border-t border-rose-900/40 px-8 py-2.5 text-xs font-mono space-y-1.5">
-                          <div className="text-[11px] font-semibold text-rose-400 uppercase tracking-wider">
-                            Advisory Intelligence (OSV.dev):
+                        <div className="bg-rose-950/20 border-t border-rose-900/40 px-8 py-2.5 text-xs font-mono space-y-2">
+                          <div className="text-[11px] font-semibold text-rose-400 uppercase tracking-wider flex items-center justify-between">
+                            <span>Advisory Intelligence (OSV.dev):</span>
                           </div>
-                          {vulns.map((v, i) => (
-                            <div key={i} className="flex items-baseline gap-2 text-zinc-300">
-                              <span className="text-rose-400 font-bold shrink-0">{v.id}</span>
-                              <span className="text-zinc-500">[{v.severity}]</span>
-                              <span className="text-zinc-400 truncate">{v.summary || "Security vulnerability fix available"}</span>
-                            </div>
-                          ))}
+                          {vulns.map((v: Vulnerability, i: number) => {
+                            const fixedIn = v.fixed_in;
+                            const isMitigated = v.is_mitigated;
+                            return (
+                              <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-zinc-300 bg-rose-950/30 p-2 rounded border border-rose-900/30">
+                                <div className="flex items-baseline gap-2 min-w-0">
+                                  <span className="text-rose-400 font-bold shrink-0">{v.id}</span>
+                                  <span className="text-zinc-500">[{v.severity}]</span>
+                                  <span className="text-zinc-400 truncate">{v.summary || "Security vulnerability fix available"}</span>
+                                </div>
+
+                                <div className="shrink-0 flex items-center gap-1.5 text-[11px]">
+                                  {isMitigated === false ? (
+                                    <span className="bg-rose-900/80 text-rose-200 border border-rose-700 px-1.5 py-0.5 rounded font-bold">
+                                      Zero-Day (Unmitigated)
+                                    </span>
+                                  ) : fixedIn ? (
+                                    <span className="bg-emerald-950 text-emerald-300 border border-emerald-800 px-1.5 py-0.5 rounded">
+                                      Fixed in {fixedIn}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

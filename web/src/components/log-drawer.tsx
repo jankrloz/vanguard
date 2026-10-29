@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Terminal, ChevronDown, ChevronUp, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState, type FC } from "react";
+import { Terminal, ChevronDown, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import type { UpgradeEvent } from "../lib/types";
 
 interface LogDrawerProps {
@@ -10,7 +10,7 @@ interface LogDrawerProps {
   onClear: () => void;
 }
 
-export const LogDrawer: React.FC<LogDrawerProps> = ({
+export const LogDrawer: FC<LogDrawerProps> = ({
   isOpen,
   isUpgrading,
   events,

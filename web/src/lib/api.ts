@@ -1,4 +1,4 @@
-import type { ScanResult, SystemStatus, UpgradeEvent } from "./types";
+import type { HistoryEntry, ScanResult, SystemStatus, UpgradeEvent } from "./types";
 
 const BASE_URL = "";
 
@@ -39,6 +39,37 @@ export async function triggerClean(): Promise<{ status: string }> {
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(errorText || "Failed to trigger clean");
+  }
+  return res.json();
+}
+
+export async function triggerTopgrade(): Promise<{ status: string }> {
+  const res = await fetch(`${BASE_URL}/api/topgrade`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || "Failed to trigger Topgrade sweep");
+  }
+  return res.json();
+}
+
+export async function fetchHistory(limit = 50): Promise<HistoryEntry[]> {
+  const res = await fetch(`${BASE_URL}/api/history?limit=${limit}`);
+  if (!res.ok) throw new Error("Failed to fetch upgrade history");
+  return res.json();
+}
+
+export async function togglePin(packageId: string): Promise<{ package_id: string; pinned: boolean }> {
+  const res = await fetch(`${BASE_URL}/api/config/pin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ package_id: packageId }),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || "Failed to toggle pin");
   }
   return res.json();
 }

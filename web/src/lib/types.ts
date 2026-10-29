@@ -4,6 +4,8 @@ export interface Vulnerability {
   id: string;
   summary: string;
   severity: string;
+  fixed_in?: string;
+  is_mitigated?: boolean;
 }
 
 export interface Package {
@@ -47,4 +49,14 @@ export interface SystemStatus {
   sudo_active: boolean;
   platform: string;
   timestamp: string;
+}
+
+export interface HistoryEntry {
+  timestamp: string;
+  package_id: string;
+  manager: string;
+  from_version: string;
+  to_version: string;
+  status: "ok" | "failed";
+  message?: string;
 }
