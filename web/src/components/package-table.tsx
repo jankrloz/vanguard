@@ -857,14 +857,27 @@ export const PackageTable: FC<PackageTableProps> = ({
                                   </button>
                                 </div>
 
-                                {(pkg.description || (vulns.length > 0 && vulns[0].summary)) && (
+                                {hasVuln && vulns.length > 0 && vulns[0].summary ? (
+                                  <p
+                                    className="text-[11px] font-mono text-rose-300 font-medium truncate max-w-2xl mt-0.5 leading-tight flex items-center gap-1.5"
+                                    title={`${vulns[0].id}: ${vulns[0].summary}`}
+                                  >
+                                    <span className="text-rose-500 font-bold shrink-0">CVE:</span>
+                                    <span className="truncate">{vulns[0].summary}</span>
+                                    {vulns.length > 1 && (
+                                      <span className="text-rose-400/80 shrink-0 text-[10px]">
+                                        (+{vulns.length - 1} more)
+                                      </span>
+                                    )}
+                                  </p>
+                                ) : pkg.description ? (
                                   <p
                                     className="text-[11px] font-mono text-zinc-400 truncate max-w-xl mt-0.5 leading-tight"
-                                    title={pkg.description || vulns[0]?.summary}
+                                    title={pkg.description}
                                   >
-                                    {pkg.description || vulns[0]?.summary}
+                                    {pkg.description}
                                   </p>
-                                )}
+                                ) : null}
                               </div>
                             </div>
 
@@ -987,7 +1000,7 @@ export const PackageTable: FC<PackageTableProps> = ({
                                       >
                                         {v.score ? `${v.severity} (${v.score})` : v.severity || "HIGH"}
                                       </span>
-                                      <span className="text-zinc-300 truncate text-[11px]" title={v.summary}>
+                                      <span className="text-zinc-200 text-xs font-normal" title={v.summary}>
                                         {v.summary || "Security vulnerability fix available in upstream release"}
                                       </span>
                                     </div>

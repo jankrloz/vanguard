@@ -99,6 +99,16 @@ func runCheck(ctx context.Context, args []string) int {
 				pinBadge,
 			)
 
+			if p.HasVulnerability && len(p.Vulnerabilities) > 0 {
+				for _, v := range p.Vulnerabilities {
+					summary := v.Summary
+					if summary == "" {
+						summary = "Security advisory fix available in upstream release"
+					}
+					fmt.Printf("    %s🚨 %s: %s%s\n", ui.Rose, v.ID, summary, ui.Reset)
+				}
+			}
+
 			if p.Description != "" {
 				fmt.Printf("    %s└─ %s%s%s\n", ui.DarkZinc, ui.Zinc, p.Description, ui.Reset)
 			}
@@ -200,6 +210,15 @@ func runApply(ctx context.Context, args []string) int {
 			ui.White, p.LatestVersion+ui.Reset,
 			badge,
 		)
+		if p.HasVulnerability && len(p.Vulnerabilities) > 0 {
+			for _, v := range p.Vulnerabilities {
+				summary := v.Summary
+				if summary == "" {
+					summary = "Security advisory fix available in upstream release"
+				}
+				fmt.Printf("      %s🚨 %s: %s%s\n", ui.Rose, v.ID, summary, ui.Reset)
+			}
+		}
 		if p.Description != "" {
 			fmt.Printf("      %s└─ %s%s%s\n", ui.DarkZinc, ui.Zinc, p.Description, ui.Reset)
 		}

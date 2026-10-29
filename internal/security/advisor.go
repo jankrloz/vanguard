@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jankrloz/vanguard/internal/domain"
@@ -28,40 +30,47 @@ type OSVBatchRequest struct {
 type OSVBatchResponse struct {
 	Results []struct {
 		Vulns []struct {
-			ID       string   `json:"id"`
-			Summary  string   `json:"summary"`
-			Details  string   `json:"details"`
-			Upstream []string `json:"upstream"`
-			Severity []struct {
-				Type  string `json:"type"`
-				Score string `json:"score"`
-			} `json:"severity"`
-			DatabaseSpecific struct {
-				Severity string `json:"severity"`
-			} `json:"database_specific"`
-			Affected []struct {
-				Ranges []struct {
-					Events []struct {
-						Introduced string `json:"introduced"`
-						Fixed      string `json:"fixed"`
-					} `json:"events"`
-				} `json:"ranges"`
-			} `json:"affected"`
+			ID string `json:"id"`
 		} `json:"vulns"`
 	} `json:"results"`
+}
+
+type OSVVulnDetail struct {
+	ID       string   `json:"id"`
+	Summary  string   `json:"summary"`
+	Details  string   `json:"details"`
+	Aliases  []string `json:"aliases"`
+	Severity []struct {
+		Type  string `json:"type"`
+		Score string `json:"score"`
+	} `json:"severity"`
+	DatabaseSpecific struct {
+		Severity string `json:"severity"`
+	} `json:"database_specific"`
+	Affected []struct {
+		Ranges []struct {
+			Events []struct {
+				Introduced string `json:"introduced"`
+				Fixed      string `json:"fixed"`
+			} `json:"events"`
+		} `json:"ranges"`
+	} `json:"affected"`
 }
 
 type Advisor struct {
 	client  *http.Client
 	baseURL string
+	cacheMu sync.RWMutex
+	cache   map[string]*OSVVulnDetail
 }
 
 func NewAdvisor() *Advisor {
 	return &Advisor{
 		client: &http.Client{
-			Timeout: 8 * time.Second,
+			Timeout: 10 * time.Second,
 		},
 		baseURL: "https://api.osv.dev/v1/querybatch",
+		cache:   make(map[string]*OSVVulnDetail),
 	}
 }
 
@@ -95,13 +104,50 @@ func MapManagerToEcosystem(mgr string) string {
 	}
 }
 
+// FetchVulnDetail fetches full vulnerability advisory details by ID with caching.
+func (a *Advisor) FetchVulnDetail(ctx context.Context, id string) (*OSVVulnDetail, error) {
+	a.cacheMu.RLock()
+	cached, ok := a.cache[id]
+	a.cacheMu.RUnlock()
+	if ok {
+		return cached, nil
+	}
+
+	url := fmt.Sprintf("https://api.osv.dev/v1/vulns/%s", id)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("osv api status %d", resp.StatusCode)
+	}
+
+	var detail OSVVulnDetail
+	if err := json.NewDecoder(resp.Body).Decode(&detail); err != nil {
+		return nil, err
+	}
+
+	a.cacheMu.Lock()
+	a.cache[id] = &detail
+	a.cacheMu.Unlock()
+
+	return &detail, nil
+}
+
 // EnrichPackages queries OSV.dev and annotates packages with CVEs and security advisories.
 func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []domain.Package {
 	if len(pkgs) == 0 {
 		return pkgs
 	}
 
-	// 1. Identify packages belonging to supported OSV ecosystems (prevents cross-ecosystem false matches)
+	// 1. Identify packages belonging to supported OSV ecosystems
 	type queryTarget struct {
 		pkgIndex int
 		query    OSVQuery
@@ -134,8 +180,15 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 		endpoint = "https://api.osv.dev/v1/querybatch"
 	}
 
-	// 2. Query in chunks of max 500 (OSV API maximum is 1000)
+	// 2. Query batch in chunks
 	const chunkSize = 500
+	var uniqueVulnIDs = make(map[string]bool)
+	type pkgMatch struct {
+		pkgIdx  int
+		vulnIDs []string
+	}
+	var matches []pkgMatch
+
 	for chunkStart := 0; chunkStart < len(targets); chunkStart += chunkSize {
 		chunkEnd := chunkStart + chunkSize
 		if chunkEnd > len(targets) {
@@ -180,39 +233,97 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 			}
 
 			pkgIdx := currentChunk[resIdx].pkgIndex
-			var vulns []domain.Vulnerability
-			maxSeverity := "LOW"
-
+			var ids []string
 			for _, v := range res.Vulns {
-				id := v.ID
-				if len(v.Upstream) > 0 {
-					id = v.Upstream[0] + " (" + v.ID + ")"
+				ids = append(ids, v.ID)
+				uniqueVulnIDs[v.ID] = true
+			}
+			matches = append(matches, pkgMatch{pkgIdx: pkgIdx, vulnIDs: ids})
+		}
+	}
+
+	if len(uniqueVulnIDs) == 0 {
+		return pkgs
+	}
+
+	// 3. Hydrate full details for each unique vulnerability ID concurrently
+	detailsMap := make(map[string]*OSVVulnDetail)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 10) // Concurrency limiter
+
+	for id := range uniqueVulnIDs {
+		wg.Add(1)
+		go func(vulnID string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			detailCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+
+			detail, err := a.FetchVulnDetail(detailCtx, vulnID)
+			if err == nil && detail != nil {
+				mu.Lock()
+				detailsMap[vulnID] = detail
+				mu.Unlock()
+			}
+		}(id)
+	}
+
+	wg.Wait()
+
+	// 4. Annotate matched packages
+	for _, match := range matches {
+		pkgIdx := match.pkgIdx
+		var vulns []domain.Vulnerability
+		maxSeverity := "LOW"
+
+		for _, vid := range match.vulnIDs {
+			detail := detailsMap[vid]
+			id := vid
+			summary := ""
+			source := "OSV"
+			sev := "HIGH"
+			score := 0.0
+			fixedIn := ""
+
+			if detail != nil {
+				// Prefer CVE alias if available
+				cveAlias := ""
+				for _, alias := range detail.Aliases {
+					if strings.HasPrefix(alias, "CVE-") {
+						cveAlias = alias
+						break
+					}
+				}
+				if cveAlias != "" && !strings.HasPrefix(id, "CVE-") {
+					id = fmt.Sprintf("%s (%s)", cveAlias, vid)
 				}
 
-				summary := v.Summary
-				if summary == "" && v.Details != "" {
-					summary = v.Details
-					if len(summary) > 80 {
-						summary = summary[:80] + "..."
+				summary = strings.TrimSpace(detail.Summary)
+				if summary == "" && detail.Details != "" {
+					lines := strings.Split(detail.Details, "\n")
+					summary = strings.TrimSpace(lines[0])
+					if len(summary) > 160 {
+						summary = summary[:160] + "..."
 					}
 				}
 
-				source := "OSV"
-				if strings.HasPrefix(v.ID, "GHSA-") {
+				if strings.HasPrefix(vid, "GHSA-") {
 					source = "GitHub Advisory (GHSA)"
-				} else if strings.HasPrefix(v.ID, "CVE-") {
+				} else if strings.HasPrefix(vid, "CVE-") {
 					source = "NVD / CVE"
-				} else if strings.HasPrefix(v.ID, "RUSTSEC-") {
-					source = "RustSec (Cargo Audit)"
-				} else if strings.HasPrefix(v.ID, "PYSEC-") {
-					source = "PyPA (Pip Audit)"
-				} else if strings.HasPrefix(v.ID, "GO-") {
-					source = "Go Vulnerability Database"
+				} else if strings.HasPrefix(vid, "RUSTSEC-") {
+					source = "RustSec"
+				} else if strings.HasPrefix(vid, "PYSEC-") {
+					source = "PyPA"
+				} else if strings.HasPrefix(vid, "GO-") {
+					source = "Go Vuln DB"
 				}
 
-				score := 0.0
-				sev := strings.ToUpper(v.DatabaseSpecific.Severity)
-				for _, s := range v.Severity {
+				sev = strings.ToUpper(detail.DatabaseSpecific.Severity)
+				for _, s := range detail.Severity {
 					if strings.Contains(s.Score, "AV:N") && strings.Contains(s.Score, "C:H") && strings.Contains(s.Score, "I:H") {
 						if sev == "" {
 							sev = "CRITICAL"
@@ -223,6 +334,8 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 							sev = "HIGH"
 						}
 						score = 7.5
+					} else if score == 0.0 {
+						score = 5.0
 					}
 				}
 
@@ -233,17 +346,8 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 					sev = "MEDIUM"
 				}
 
-				if sev == "CRITICAL" {
-					maxSeverity = "CRITICAL"
-				} else if sev == "HIGH" && maxSeverity != "CRITICAL" {
-					maxSeverity = "HIGH"
-				} else if (sev == "MEDIUM" || sev == "MODERATE") && maxSeverity != "CRITICAL" && maxSeverity != "HIGH" {
-					maxSeverity = "MEDIUM"
-				}
-
 				// Find fixed version from ranges
-				fixedIn := ""
-				for _, aff := range v.Affected {
+				for _, aff := range detail.Affected {
 					for _, rng := range aff.Ranges {
 						for _, ev := range rng.Events {
 							if ev.Fixed != "" {
@@ -259,36 +363,48 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 						break
 					}
 				}
-
-				isMitigated := true
-				if fixedIn != "" {
-					tMaj, tMin, tPatch, tOk := domain.ParseVersion(pkgs[pkgIdx].LatestVersion)
-					fMaj, fMin, fPatch, fOk := domain.ParseVersion(fixedIn)
-					if tOk && fOk {
-						if tMaj < fMaj || (tMaj == fMaj && tMin < fMin) || (tMaj == fMaj && tMin == fMin && tPatch < fPatch) {
-							isMitigated = false
-						}
-					}
-				} else {
-					isMitigated = false
-				}
-
-				vulns = append(vulns, domain.Vulnerability{
-					ID:          id,
-					Summary:     summary,
-					Severity:    sev,
-					Score:       score,
-					Source:      source,
-					FixedIn:     fixedIn,
-					IsMitigated: isMitigated,
-				})
 			}
 
-			pkgs[pkgIdx].Vulnerabilities = vulns
-			pkgs[pkgIdx].HasVulnerability = true
-			pkgs[pkgIdx].MaxSeverity = maxSeverity
-			pkgs[pkgIdx].Selected = true
+			if summary == "" {
+				summary = "Security advisory fix available in upstream release"
+			}
+
+			if sev == "CRITICAL" {
+				maxSeverity = "CRITICAL"
+			} else if sev == "HIGH" && maxSeverity != "CRITICAL" {
+				maxSeverity = "HIGH"
+			} else if (sev == "MEDIUM" || sev == "MODERATE") && maxSeverity != "CRITICAL" && maxSeverity != "HIGH" {
+				maxSeverity = "MEDIUM"
+			}
+
+			isMitigated := true
+			if fixedIn != "" {
+				tMaj, tMin, tPatch, tOk := domain.ParseVersion(pkgs[pkgIdx].LatestVersion)
+				fMaj, fMin, fPatch, fOk := domain.ParseVersion(fixedIn)
+				if tOk && fOk {
+					if tMaj < fMaj || (tMaj == fMaj && tMin < fMin) || (tMaj == fMaj && tMin == fMin && tPatch < fPatch) {
+						isMitigated = false
+					}
+				}
+			} else {
+				isMitigated = false
+			}
+
+			vulns = append(vulns, domain.Vulnerability{
+				ID:          id,
+				Summary:     summary,
+				Severity:    sev,
+				Score:       score,
+				Source:      source,
+				FixedIn:     fixedIn,
+				IsMitigated: isMitigated,
+			})
 		}
+
+		pkgs[pkgIdx].Vulnerabilities = vulns
+		pkgs[pkgIdx].HasVulnerability = true
+		pkgs[pkgIdx].MaxSeverity = maxSeverity
+		pkgs[pkgIdx].Selected = true
 	}
 
 	return pkgs
