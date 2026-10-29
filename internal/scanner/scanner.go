@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 	"time"
@@ -86,8 +87,13 @@ func (s *Scanner) scanMPM(ctx context.Context) ([]domain.Package, error) {
 		return nil, fmt.Errorf("mpm outdated failed: %w", err)
 	}
 
+	return ParseMPMOutput(bytes.NewReader(out)), nil
+}
+
+// ParseMPMOutput parses tabular output from `mpm --accessible --no-color outdated`.
+func ParseMPMOutput(r io.Reader) []domain.Package {
 	var packages []domain.Package
-	scanner := bufio.NewScanner(bytes.NewReader(out))
+	scanner := bufio.NewScanner(r)
 
 	inTable := false
 	for scanner.Scan() {
@@ -132,5 +138,5 @@ func (s *Scanner) scanMPM(ctx context.Context) ([]domain.Package, error) {
 		}
 	}
 
-	return packages, nil
+	return packages
 }

@@ -20,24 +20,32 @@ import (
 	"github.com/jankrloz/vanguard/internal/server"
 )
 
+const Version = "0.1.0"
+
 func main() {
 	devMode := flag.Bool("dev", false, "Enable development mode (reverse proxy to Vite dev server)")
 	port := flag.Int("port", 9099, "HTTP server port (0 for random open port)")
 	noOpen := flag.Bool("no-open", false, "Do not automatically open browser on startup")
-	noSudo := flag.Bool("no-sudo", false, "Skip Touch ID / sudo pre-flight priming")
+	noSudo := flag.Bool("no-sudo", false, "Skip privilege pre-flight priming")
+	showVersion := flag.Bool("version", false, "Print Vanguard version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("Vanguard v%s (%s/%s)\n", Version, runtime.GOOS, runtime.GOARCH)
+		return
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	fmt.Println("\n  ▲ VANGUARD — System Package & Dependency Updater")
-	fmt.Println("  ────────────────────────────────────────────────")
+	fmt.Println("\n  ▲ VANGUARD — Vulnerability Shield & Package Orchestrator")
+	fmt.Println("  ────────────────────────────────────────────────────────")
 
 	// 1. Privilege pre-flight & Keepalive
 	if !*noSudo {
 		fmt.Print("  [1/3] Initializing privilege keepalive... ")
 		if err := auth.EnsureSudo(); err != nil {
-			fmt.Printf("⚠️  Warning: sudo priming failed: %v\n", err)
+			fmt.Printf("⚠️  Warning: privilege priming failed: %v\n", err)
 		} else {
 			fmt.Println("✓ Active")
 			auth.StartKeepAlive(ctx, 40*time.Second)
@@ -100,7 +108,7 @@ func main() {
 	fmt.Printf("  Press Ctrl+C to stop the background server.\n\n")
 
 	<-ctx.Done()
-	fmt.Println("\n  Shutting down UP server...")
+	fmt.Println("\n  Shutting down Vanguard server...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

@@ -43,7 +43,8 @@ type OSVBatchResponse struct {
 }
 
 type Advisor struct {
-	client *http.Client
+	client  *http.Client
+	baseURL string
 }
 
 func NewAdvisor() *Advisor {
@@ -51,6 +52,7 @@ func NewAdvisor() *Advisor {
 		client: &http.Client{
 			Timeout: 8 * time.Second,
 		},
+		baseURL: "https://api.osv.dev/v1/querybatch",
 	}
 }
 
@@ -98,7 +100,12 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 		return pkgs
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.osv.dev/v1/querybatch", bytes.NewReader(reqBody))
+	endpoint := a.baseURL
+	if endpoint == "" {
+		endpoint = "https://api.osv.dev/v1/querybatch"
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(reqBody))
 	if err != nil {
 		return pkgs
 	}

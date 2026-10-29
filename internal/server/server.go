@@ -9,21 +9,32 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os/exec"
+	"runtime"
 	"sync"
 	"time"
 
 	"github.com/jankrloz/vanguard/internal/domain"
 	"github.com/jankrloz/vanguard/internal/executor"
-	"github.com/jankrloz/vanguard/internal/scanner"
 )
 
+// Scanner interface decouples the server from package scanning engines.
+type Scanner interface {
+	Scan(ctx context.Context) (*domain.ScanResult, error)
+}
+
+// Executor interface decouples the server from system execution engines.
+type Executor interface {
+	ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, onEvent executor.EventCallback) error
+	ExecuteClean(ctx context.Context, onEvent executor.EventCallback) error
+}
+
 type Config struct {
-	DevMode      bool
-	ViteDevURL   string
-	StaticFS     fs.FS
-	StaticDir    string
-	Scanner      *scanner.Scanner
-	Executor     *executor.Executor
+	DevMode    bool
+	ViteDevURL string
+	StaticFS   fs.FS
+	StaticDir  string
+	Scanner    Scanner
+	Executor   Executor
 }
 
 type Server struct {
@@ -70,7 +81,7 @@ func (s *Server) routes() {
 	} else {
 		s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprintf(w, "<html><body><h3>UP API running. Build frontend with 'vp build' in web/</h3></body></html>")
+			fmt.Fprintf(w, "<html><body><h3>Vanguard API running. Build frontend with 'task build'</h3></body></html>")
 		})
 	}
 }
@@ -107,7 +118,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"status":      "ok",
 		"sudo_active": sudoActive,
-		"platform":    "darwin",
+		"platform":    runtime.GOOS,
 		"timestamp":   time.Now().Format(time.RFC3339),
 	}
 
@@ -116,6 +127,11 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleOutdated(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.Scanner == nil {
+		http.Error(w, `{"error": "scanner not configured"}`, http.StatusInternalServerError)
+		return
+	}
+
 	refresh := r.URL.Query().Get("refresh") == "true"
 
 	s.resultMu.RLock()
@@ -145,6 +161,11 @@ func (s *Server) handleOutdated(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleUpgrade(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.cfg.Executor == nil {
+		http.Error(w, "Executor not configured", http.StatusInternalServerError)
 		return
 	}
 
@@ -207,6 +228,11 @@ func (s *Server) handleUpgrade(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleClean(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.cfg.Executor == nil {
+		http.Error(w, "Executor not configured", http.StatusInternalServerError)
 		return
 	}
 
