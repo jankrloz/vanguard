@@ -1,0 +1,73 @@
+version: '3'
+
+vars:
+  BIN: bin/up
+  INSTALL_DIR: '{{.HOME}}/.local/bin'
+
+tasks:
+  default:
+    desc: Build all artifacts (web and Go binary)
+    cmds:
+      - task: build
+
+  setup:
+    desc: Install frontend dependencies
+    cmds:
+      - cmd: cd web && pnpm install
+
+  build:web:
+    desc: Build Vite+ React frontend assets
+    cmds:
+      - cmd: cd web && vp build
+    sources:
+      - 'web/src/**/*'
+      - 'web/index.html'
+      - 'web/package.json'
+      - 'web/vite.config.ts'
+    generates:
+      - 'web/dist/index.html'
+
+  build:go:
+    desc: Compile Go backend binary with embedded assets
+    deps: [build:web]
+    cmds:
+      - cmd: go build -ldflags="-s -w" -o {{.BIN}} ./cmd/up
+    sources:
+      - '**/*.go'
+      - 'web/dist/**/*'
+    generates:
+      - '{{.BIN}}'
+
+  build:
+    desc: Full build of frontend and Go binary
+    cmds:
+      - task: build:web
+      - task: build:go
+
+  test:
+    desc: Run test suite
+    cmds:
+      - go test -v ./...
+
+  install:
+    desc: Install the compiled 'up' binary to ~/.local/bin/up
+    deps: [build]
+    preconditions:
+      - sh: 'test -d {{.INSTALL_DIR}}'
+        msg: 'Directory {{.INSTALL_DIR}} does not exist. Please create it or set INSTALL_DIR.'
+    cmds:
+      - cp {{.BIN}} {{.INSTALL_DIR}}/up
+      - chmod +x {{.INSTALL_DIR}}/up
+      - echo "Installed up to {{.INSTALL_DIR}}/up"
+
+  run:
+    desc: Run UP dashboard with Touch ID authentication
+    deps: [build]
+    cmds:
+      - ./{{.BIN}}
+
+  dev:
+    desc: Run in development mode (with live HMR)
+    cmds:
+      - echo "Starting development server..."
+      - go run ./cmd/up --dev
