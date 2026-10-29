@@ -4,31 +4,14 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jankrloz/vanguard/internal/domain"
 	"github.com/jankrloz/vanguard/internal/security"
 )
-
-type BrewOutdatedResponse struct {
-	Formulae []struct {
-		Name              string   `json:"name"`
-		InstalledVersions []string `json:"installed_versions"`
-		CurrentVersion    string   `json:"current_version"`
-		Pinned            bool     `json:"pinned"`
-	} `json:"formulae"`
-	Casks []struct {
-		Name              string   `json:"name"`
-		InstalledVersions []string `json:"installed_versions"`
-		CurrentVersion    string   `json:"current_version"`
-		Pinned            bool     `json:"pinned"`
-	} `json:"casks"`
-}
 
 type Scanner struct{}
 
@@ -36,59 +19,35 @@ func New() *Scanner {
 	return &Scanner{}
 }
 
-// Scan queries mpm and brew to find all outdated packages across all package managers.
+// Scan queries mpm to find all outdated packages across all package managers,
+// checks pinned states, and enriches results with OSV.dev CVE intelligence.
 func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
-	pkgMap := make(map[string]domain.Package)
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-
-	// Scan mpm
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		mpmPkgs, err := s.scanMPM(ctx)
-		if err == nil {
-			mu.Lock()
-			for _, p := range mpmPkgs {
-				key := fmt.Sprintf("%s:%s", p.Manager, p.Name)
-				pkgMap[key] = p
-			}
-			mu.Unlock()
-		}
-	}()
-
-	// Scan brew
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		brewPkgs, err := s.scanBrew(ctx)
-		if err == nil {
-			mu.Lock()
-			for _, p := range brewPkgs {
-				key := fmt.Sprintf("%s:%s", p.Manager, p.Name)
-				// Prefer brew's pinned/version info if present
-				pkgMap[key] = p
-			}
-			mu.Unlock()
-		}
-	}()
-
-	wg.Wait()
-
-	var packages []domain.Package
-	for _, p := range pkgMap {
-		packages = append(packages, p)
+	// 1. Discover outdated packages via mpm
+	packages, err := s.scanMPM(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("mpm scan failed: %w", err)
 	}
 
-	// Enrich with security vulnerability intelligence (OSV.dev CVEs/GHSAs)
-	advisor := security.NewAdvisor()
-	packages = advisor.EnrichPackages(ctx, packages)
+	// 2. Query pinned packages from brew (fast 10ms lookup)
+	pinnedSet := s.getPinnedBrewPackages(ctx)
 
 	safeCount := 0
 	majorCount := 0
 	pinnedCount := 0
 	securityFixCount := 0
 
+	for i := range packages {
+		if pinnedSet[packages[i].Name] {
+			packages[i].Pinned = true
+			packages[i].Selected = false
+		}
+	}
+
+	// 3. Enrich with OSV.dev vulnerability intelligence
+	advisor := security.NewAdvisor()
+	packages = advisor.EnrichPackages(ctx, packages)
+
+	// 4. Calculate summaries
 	for _, p := range packages {
 		if p.Pinned {
 			pinnedCount++
@@ -104,7 +63,7 @@ func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 		}
 	}
 
-	// Sort: packages with known vulnerabilities come first
+	// 5. Sort: vulnerable packages float to the top
 	for i := 0; i < len(packages); i++ {
 		for j := i + 1; j < len(packages); j++ {
 			if !packages[i].HasVulnerability && packages[j].HasVulnerability {
@@ -190,67 +149,20 @@ func (s *Scanner) scanMPM(ctx context.Context) ([]domain.Package, error) {
 	return packages, nil
 }
 
-func (s *Scanner) scanBrew(ctx context.Context) ([]domain.Package, error) {
-	scanCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(scanCtx, "brew", "outdated", "--json=v2")
+func (s *Scanner) getPinnedBrewPackages(ctx context.Context) map[string]bool {
+	pinned := make(map[string]bool)
+	cmd := exec.CommandContext(ctx, "brew", "list", "--pinned")
 	out, err := cmd.Output()
-	if err != nil && len(out) == 0 {
-		return nil, fmt.Errorf("brew outdated failed: %w", err)
+	if err != nil {
+		return pinned
 	}
 
-	// Filter out non-JSON prelude lines (like ==> Downloading Homebrew API data)
-	idx := bytes.Index(out, []byte("{"))
-	if idx == -1 {
-		return nil, fmt.Errorf("no json found in brew outdated output")
-	}
-	out = out[idx:]
-
-	var resp BrewOutdatedResponse
-	if err := json.Unmarshal(out, &resp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal brew outdated json: %w", err)
-	}
-
-	var packages []domain.Package
-
-	for _, f := range resp.Formulae {
-		current := ""
-		if len(f.InstalledVersions) > 0 {
-			current = f.InstalledVersions[0]
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	for scanner.Scan() {
+		pkg := strings.TrimSpace(scanner.Text())
+		if pkg != "" {
+			pinned[pkg] = true
 		}
-		changeType, safe := domain.ClassifyChange(current, f.CurrentVersion)
-		packages = append(packages, domain.Package{
-			ID:             fmt.Sprintf("brew:%s", f.Name),
-			Name:           f.Name,
-			Manager:        "brew",
-			CurrentVersion: current,
-			LatestVersion:  f.CurrentVersion,
-			ChangeType:     changeType,
-			Safe:           safe,
-			Pinned:         f.Pinned,
-			Selected:       safe && !f.Pinned,
-		})
 	}
-
-	for _, c := range resp.Casks {
-		current := ""
-		if len(c.InstalledVersions) > 0 {
-			current = c.InstalledVersions[0]
-		}
-		changeType, safe := domain.ClassifyChange(current, c.CurrentVersion)
-		packages = append(packages, domain.Package{
-			ID:             fmt.Sprintf("cask:%s", c.Name),
-			Name:           c.Name,
-			Manager:        "cask",
-			CurrentVersion: current,
-			LatestVersion:  c.CurrentVersion,
-			ChangeType:     changeType,
-			Safe:           safe,
-			Pinned:         c.Pinned,
-			Selected:       safe && !c.Pinned,
-		})
-	}
-
-	return packages, nil
+	return pinned
 }
