@@ -76,37 +76,37 @@
       <!-- Card 1: CVE Shield -->
       <rect x="0" y="0" width="300" height="130" rx="14" fill="#0E0E12" stroke="#27272A" stroke-width="1.5" />
       <text x="24" y="38" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700" fill="#FF2E93" letter-spacing="1">
-        ● OSV.DEV INTELLIGENCE
+        ● MULTI-ENGINE CVE SHIELD
       </text>
       <text x="24" y="70" font-family="'Inter', sans-serif" font-size="18" font-weight="700" fill="#F4F4F5">
-        Zero-Day CVE Defense
+        Authoritative Triage
       </text>
       <text x="24" y="98" font-family="'Inter', sans-serif" font-size="13" font-weight="400" fill="#A1A1AA">
-        Automatic CVSS severity triage: Critical, High, Medium advisories.
+        OSV.dev, GHSA, Trivy, osv-scanner &amp; native CLI audits.
       </text>
 
       <!-- Card 2: Safe SemVer Upgrades -->
       <rect x="330" y="0" width="300" height="130" rx="14" fill="#0E0E12" stroke="#27272A" stroke-width="1.5" />
       <text x="354" y="38" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700" fill="#00FF9D" letter-spacing="1">
-        ✓ SEMVER AUDITOR
+        ✓ SEMVER RISK GUARD
       </text>
       <text x="354" y="70" font-family="'Inter', sans-serif" font-size="18" font-weight="700" fill="#F4F4F5">
-        Zero-Risk Safe Patching
+        Safe vs. Major Control
       </text>
       <text x="354" y="98" font-family="'Inter', sans-serif" font-size="13" font-weight="400" fill="#A1A1AA">
-        Isolates major breaking API changes from instant safe patch rollouts.
+        Separates safe minor/patch updates from major breaking changes.
       </text>
 
       <!-- Card 3: Multi-Manager Unified -->
       <rect x="660" y="0" width="300" height="130" rx="14" fill="#0E0E12" stroke="#27272A" stroke-width="1.5" />
       <text x="684" y="38" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700" fill="#00F0FF" letter-spacing="1">
-        ⚡ 60+ MANAGERS
+        ⚡ 35+ PACKAGE MANAGERS
       </text>
       <text x="684" y="70" font-family="'Inter', sans-serif" font-size="18" font-weight="700" fill="#F4F4F5">
-        Unified Ecosystem
+        Web &amp; Headless CLI
       </text>
       <text x="684" y="98" font-family="'Inter', sans-serif" font-size="13" font-weight="400" fill="#A1A1AA">
-        Homebrew, Cargo, Pip, Gem, Npm, Go, UV, Pnpm &amp; Topgrade.
+        Homebrew, npm, pnpm, pip, uv, Cargo, Gem, Go &amp; Topgrade.
       </text>
     </g>
 
@@ -116,14 +116,14 @@
       <text x="24" y="36" font-family="'JetBrains Mono', monospace" font-size="15" font-weight="500" fill="#00F0FF">
         $ vg check
       </text>
-      <text x="130" y="36" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="400" fill="#71717A">
-        # CLI triage with Lip Gloss &amp; Charm
+      <text x="135" y="36" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="400" fill="#A1A1AA">
+        # Multi-engine CVE &amp; SemVer audit
       </text>
-      <text x="500" y="36" font-family="'JetBrains Mono', monospace" font-size="15" font-weight="500" fill="#00F0FF">
-        $ vanguard
+      <text x="480" y="36" font-family="'JetBrains Mono', monospace" font-size="15" font-weight="500" fill="#00F0FF">
+        $ vg apply
       </text>
-      <text x="615" y="36" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="400" fill="#71717A">
-        # Web dashboard &amp; Touch ID keepalive
+      <text x="595" y="36" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="400" fill="#A1A1AA">
+        # Safe upgrades (--major for breaking)
       </text>
     </g>
   </g>

@@ -173,7 +173,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	version := s.cfg.Version
 	if version == "" {
-		version = "0.3.0"
+		version = "0.3.1"
 	}
 
 	resp := map[string]interface{}{

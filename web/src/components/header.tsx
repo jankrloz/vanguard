@@ -40,7 +40,7 @@ export const Header: FC<HeaderProps> = ({
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-semibold tracking-tight text-zinc-100 font-mono">VANGUARD</h1>
               <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-300 bg-zinc-800/80 border border-zinc-700/50 px-1.5 py-0.5 rounded">
-                {status?.version ? `v${status.version}` : "v0.3.0"}
+                {status?.version ? `v${status.version}` : "v0.3.1"}
               </span>
             </div>
             <p className="hidden md:block text-xs text-zinc-400 truncate">Vulnerability Shield &amp; Package Controller</p>

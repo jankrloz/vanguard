@@ -150,7 +150,7 @@ vg monitor --interval 1h
 
 ## Configuration & Audit Trail
 
-- **Configuration (`~/.config/vanguard/config.json`):** Stores pinned package identifiers and ignored package managers.
+- **Configuration (`~/.config/vanguard/config.toml`):** Stores pinned package identifiers and ignored package managers.
 - **Audit Log (`~/.local/state/vanguard/history.jsonl`):** Records every package upgrade and system sweep with timestamp, package manager, version transition (`from` → `to`), and execution status.
 
 ---
