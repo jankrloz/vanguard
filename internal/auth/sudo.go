@@ -5,38 +5,67 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"time"
 )
 
 // EnsureSudo checks if sudo privileges are active.
-// If not, it executes `sudo -v` attached to /dev/tty or os.Stdin,
-// which prompts for Touch ID or biometric auth on macOS (via pam_tid.so).
+// If not:
+// 1. If /dev/tty or os.Stdin is available, prompts via `sudo -v` (Touch ID / PAM).
+// 2. On macOS without an interactive terminal (e.g. web daemon), prompts native macOS authorization dialog:
+//    "Vanguard is trying to execute privileged package updates."
 func EnsureSudo() error {
 	// 1. Fast path: check if sudo credentials are valid without prompting
 	if exec.Command("sudo", "-n", "true").Run() == nil {
 		return nil
 	}
 
-	// 2. Check if stdin is a character device (terminal)
-	stat, err := os.Stdin.Stat()
-	if err != nil || (stat.Mode()&os.ModeCharDevice) == 0 {
-		return fmt.Errorf("non-interactive environment (no TTY attached)")
+	// 2. Try interactive TTY if available
+	if tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0); err == nil {
+		defer tty.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		cmd := exec.CommandContext(ctx, "sudo", "-v")
+		cmd.Stdin = tty
+		cmd.Stdout = tty
+		cmd.Stderr = tty
+		if err := cmd.Run(); err == nil {
+			return nil
+		}
+	} else if stat, err := os.Stdin.Stat(); err == nil && (stat.Mode()&os.ModeCharDevice) != 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		cmd := exec.CommandContext(ctx, "sudo", "-v")
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err == nil {
+			return nil
+		}
 	}
 
-	// 3. Prompt Touch ID with a 15-second safety timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
+	// 3. Fallback on macOS: Native macOS Authorization dialog with custom prompt
+	if runtime.GOOS == "darwin" {
+		user := os.Getenv("USER")
+		if user == "" {
+			user = "root"
+		}
 
-	cmd := exec.CommandContext(ctx, "sudo", "-v")
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("biometric/sudo authentication declined or failed: %w", err)
+		script := fmt.Sprintf(`do shell script "sudo -u %s -v || sudo -v" with prompt "Vanguard is trying to execute privileged package updates." with administrator privileges`, user)
+		cmd := exec.CommandContext(ctx, "osascript", "-e", script)
+		if err := cmd.Run(); err == nil {
+			if exec.Command("sudo", "-n", "true").Run() == nil {
+				return nil
+			}
+		}
 	}
 
-	return nil
+	return fmt.Errorf("sudo authorization required but no interactive session or permission granted")
 }
 
 // StartKeepAlive runs a background goroutine that refreshes the sudo

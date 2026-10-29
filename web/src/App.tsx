@@ -4,7 +4,6 @@ import { MetricBar } from "./components/metric-bar";
 import { PackageTable } from "./components/package-table";
 import { LogDrawer } from "./components/log-drawer";
 import { HistoryModal } from "./components/history-modal";
-import { SelectedPanel } from "./components/selected-panel";
 import {
   fetchStatus,
   fetchOutdated,
@@ -35,7 +34,6 @@ export function App() {
   const [events, setEvents] = useState<UpgradeEvent[]>([]);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load status and packages
@@ -200,7 +198,6 @@ export function App() {
     if (selected.length === 0 || isUpgrading || isScanning) return;
 
     setIsUpgrading(true);
-    setIsReviewOpen(false);
     setIsLogOpen(true);
     setActiveManager(null);
     setCompletedManagers({});
@@ -219,7 +216,6 @@ export function App() {
   const handleClean = async () => {
     if (isUpgrading || isScanning) return;
     setIsUpgrading(true);
-    setIsReviewOpen(false);
     setIsLogOpen(true);
     setEvents([]);
 
@@ -235,7 +231,6 @@ export function App() {
   const handleTopgrade = async () => {
     if (isUpgrading || isScanning) return;
     setIsUpgrading(true);
-    setIsReviewOpen(false);
     setIsLogOpen(true);
     setEvents([]);
 
@@ -300,7 +295,7 @@ export function App() {
         isUpgrading={isUpgrading}
         onScan={() => loadData(true)}
         onUpgrade={handleUpgrade}
-        onOpenReview={() => setIsReviewOpen(true)}
+        onOpenReview={() => setActiveFilter("queued")}
         onClean={handleClean}
         onTopgrade={handleTopgrade}
         onOpenHistory={() => setIsHistoryOpen(true)}
@@ -349,12 +344,12 @@ export function App() {
           onSelectOnlyFiltered={handleSelectOnlyFiltered}
           onDeselectFiltered={handleDeselectFiltered}
           onToggleManagerSelection={handleToggleManagerSelection}
-          onOpenReview={() => setIsReviewOpen(true)}
+          onUpgrade={handleUpgrade}
         />
       </main>
 
       {/* Persistent Floating Queue Review Dock when items are selected */}
-      {selectedCount > 0 && !isUpgrading && (
+      {selectedCount > 0 && !isUpgrading && activeFilter !== "queued" && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 font-mono text-xs bg-zinc-950/90 border border-zinc-700/80 shadow-2xl rounded-full px-4 py-2 flex items-center gap-3 backdrop-blur-md animate-in slide-in-from-bottom-3 duration-150">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
@@ -377,7 +372,7 @@ export function App() {
           <div className="flex items-center gap-2 pl-2 border-l border-zinc-800">
             <button
               type="button"
-              onClick={() => setIsReviewOpen(true)}
+              onClick={() => setActiveFilter("queued")}
               className="px-2.5 py-1 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700/80 text-[11px] font-medium transition-colors cursor-pointer"
             >
               Review Queue
@@ -404,17 +399,6 @@ export function App() {
           <span>View Execution Logs ({events.length})</span>
         </button>
       )}
-
-      {/* Queued Updates Breakdown Review Modal */}
-      <SelectedPanel
-        isOpen={isReviewOpen}
-        packages={packages}
-        isUpgrading={isUpgrading}
-        onClose={() => setIsReviewOpen(false)}
-        onTogglePackage={handleTogglePackage}
-        onDeselectAll={handleDeselectAll}
-        onUpgrade={handleUpgrade}
-      />
 
       {/* Slide-over Log Drawer */}
       <LogDrawer

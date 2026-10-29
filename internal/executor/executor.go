@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jankrloz/vanguard/internal/auth"
 	"github.com/jankrloz/vanguard/internal/domain"
 	"github.com/jankrloz/vanguard/internal/history"
 )
@@ -120,6 +121,13 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 			args = append(args, "--"+mgr)
 			if requiresPrivilegeEscalation(mgr) {
 				args = append(args, "--sudo")
+				// Prime administrator credentials via Touch ID / sudo before invoking MPM
+				if err := auth.EnsureSudo(); err != nil {
+					onEvent(domain.UpgradeEvent{
+						Type:    "log",
+						Message: fmt.Sprintf("⚠️ [%s] requires administrator privileges: %v. Please prime credentials via 'sudo -v' or terminal 'vg'", mgr, err),
+					})
+				}
 			}
 		}
 		args = append(args, "upgrade")

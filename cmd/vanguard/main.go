@@ -93,12 +93,23 @@ func runDashboard(ctx context.Context) {
 	// 1. Privilege pre-flight & Keepalive
 	_ = config.EnsureMPMConfig()
 	if !*noSudo {
-		fmt.Print("  [1/3] Initializing privilege keepalive... ")
-		if err := auth.EnsureSudo(); err != nil {
-			fmt.Printf("⚠️  Warning: privilege priming skipped (%v)\n", err)
-		} else {
+		fmt.Print("  [1/3] Checking privilege cache... ")
+		if exec.Command("sudo", "-n", "true").Run() == nil {
 			fmt.Println("✓ Active (Touch ID / sudo cached)")
 			auth.StartKeepAlive(ctx, 40*time.Second)
+		} else {
+			stat, err := os.Stdin.Stat()
+			isTTY := err == nil && (stat.Mode()&os.ModeCharDevice) != 0
+			if !isHeadless && isTTY {
+				if err := auth.EnsureSudo(); err != nil {
+					fmt.Printf("⚠️  Privilege priming skipped (%v)\n", err)
+				} else {
+					fmt.Println("✓ Active (Touch ID / sudo cached)")
+					auth.StartKeepAlive(ctx, 40*time.Second)
+				}
+			} else {
+				fmt.Println("⚡ On-demand (prompts only when privileged upgrades run)")
+			}
 		}
 	} else {
 		fmt.Println("  [1/3] Privilege priming skipped (--no-sudo)")

@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { ShieldCheck, ShieldAlert, RefreshCw, Trash2, ArrowUpCircle, Flame, Zap, History, Loader2 } from "lucide-react";
+import { ShieldCheck, ShieldAlert, RefreshCw, Trash2, ArrowUpCircle, Zap, History, Loader2, ListFilter } from "lucide-react";
 import type { SystemStatus } from "../lib/types";
 
 interface HeaderProps {
@@ -43,12 +43,6 @@ export const Header: FC<HeaderProps> = ({
               <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 bg-zinc-800/80 border border-zinc-700/50 px-1.5 py-0.2 rounded">
                 {status?.version ? `v${status.version}` : "v0.1.2"}
               </span>
-              {securityCount > 0 && (
-                <span className="flex items-center gap-1 text-[10px] font-mono font-semibold text-rose-300 bg-rose-950/90 border border-rose-800 px-2 py-0.5 rounded">
-                  <Flame className="w-3 h-3 text-rose-400" />
-                  {securityCount} CVE {securityCount === 1 ? "Fix" : "Fixes"} Urgent
-                </span>
-              )}
             </div>
             <p className="text-[11px] text-zinc-400">Vulnerability Shield & Package Controller</p>
           </div>
@@ -129,10 +123,11 @@ export const Header: FC<HeaderProps> = ({
                 type="button"
                 onClick={onOpenReview}
                 disabled={isUpgrading}
-                title="Review queued packages categorized by criticality"
+                title="Filter table to queued packages"
                 className="flex items-center gap-1.5 text-xs font-mono text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
-                <span>Review Queue ({selectedCount})</span>
+                <ListFilter className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Queue ({selectedCount})</span>
               </button>
             )}
 
