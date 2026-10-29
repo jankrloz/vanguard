@@ -90,10 +90,33 @@ export const PackageTable: FC<PackageTableProps> = ({
   onToggleManagerSelection,
 }) => {
   const [search, setSearch] = useState("");
-  const [selectedManager, setSelectedManager] = useState<string>("all");
+  const [selectedManagers, setSelectedManagers] = useState<string[]>([]);
+  const [isManagerDropdownOpen, setIsManagerDropdownOpen] = useState(false);
+  const managerDropdownRef = useRef<HTMLDivElement>(null);
   const [expandedVulns, setExpandedVulns] = useState<Record<string, boolean>>({});
   const [collapsedManagers, setCollapsedManagers] = useState<Record<string, boolean>>({});
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Close manager dropdown on click outside or Escape
+  useEffect(() => {
+    if (!isManagerDropdownOpen) return;
+    const handleClickOutside = (e: globalThis.MouseEvent) => {
+      if (managerDropdownRef.current && !managerDropdownRef.current.contains(e.target as Node)) {
+        setIsManagerDropdownOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsManagerDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isManagerDropdownOpen]);
 
   // Global key listener for '/' search focus
   useEffect(() => {
@@ -140,6 +163,31 @@ export const PackageTable: FC<PackageTableProps> = ({
     return packages.filter((p) => p.pinned).length;
   }, [packages]);
 
+  const isManagerFiltered = useMemo(() => {
+    return selectedManagers.length > 0 && selectedManagers.length < managers.length;
+  }, [selectedManagers, managers]);
+
+  const activeManagerSet = useMemo(() => {
+    return new Set(isManagerFiltered ? selectedManagers : managers);
+  }, [isManagerFiltered, selectedManagers, managers]);
+
+  const toggleManager = (m: string) => {
+    if (!isManagerFiltered) {
+      // All managers were selected; deselect this one
+      setSelectedManagers(managers.filter((x) => x !== m));
+    } else if (selectedManagers.includes(m)) {
+      const next = selectedManagers.filter((x) => x !== m);
+      setSelectedManagers(next.length === 0 ? [] : next);
+    } else {
+      const next = [...selectedManagers, m];
+      if (next.length >= managers.length) {
+        setSelectedManagers([]);
+      } else {
+        setSelectedManagers(next);
+      }
+    }
+  };
+
   const filteredPackages = useMemo(() => {
     return packages.filter((p) => {
       const name = p.name;
@@ -165,14 +213,14 @@ export const PackageTable: FC<PackageTableProps> = ({
       if (activeFilter === "safe" && !safe) return false;
       if (activeFilter === "major" && changeType !== "major") return false;
       if (activeFilter === "pinned" && !pinned) return false;
-      if (selectedManager !== "all" && mgr !== selectedManager) return false;
+      if (isManagerFiltered && !activeManagerSet.has(mgr)) return false;
 
       return true;
     });
-  }, [packages, search, activeFilter, selectedManager]);
+  }, [packages, search, activeFilter, isManagerFiltered, activeManagerSet]);
 
   const isFilterActive =
-    activeFilter !== "all" || search.trim() !== "" || selectedManager !== "all";
+    activeFilter !== "all" || search.trim() !== "" || isManagerFiltered;
 
   const filteredSelectable = useMemo(() => {
     return filteredPackages.filter((p) => !p.pinned);
@@ -329,21 +377,106 @@ export const PackageTable: FC<PackageTableProps> = ({
             </button>
           )}
 
-          {/* Manager filter select */}
+          {/* Custom Multi-select Manager Filter Dropdown */}
           {managers.length > 1 && (
-            <select
-              disabled={isUpgrading}
-              value={selectedManager}
-              onChange={(e) => setSelectedManager(e.target.value)}
-              className="bg-zinc-950 border border-zinc-800 text-xs font-mono text-zinc-300 rounded-md px-2 py-1 ml-1 focus:outline-none focus:border-zinc-700 cursor-pointer disabled:opacity-50"
-            >
-              <option value="all">All Managers ({packages.length})</option>
-              {managers.map((m) => (
-                <option key={m} value={m}>
-                  {m} ({managerCounts.get(m) || 0})
-                </option>
-              ))}
-            </select>
+            <div className="relative" ref={managerDropdownRef}>
+              <button
+                type="button"
+                disabled={isUpgrading}
+                onClick={() => setIsManagerDropdownOpen((prev) => !prev)}
+                className={`px-2.5 py-1 rounded-md text-xs font-mono transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+                  isManagerFiltered
+                    ? "bg-zinc-800 text-zinc-100 font-semibold border border-zinc-700 shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/80 bg-zinc-950/70"
+                }`}
+                title="Filter by package managers"
+              >
+                <span>
+                  {isManagerFiltered
+                    ? `Managers (${selectedManagers.length}/${managers.length})`
+                    : `Managers: All (${managers.length})`}
+                </span>
+                <ChevronDown
+                  className={`w-3 h-3 text-zinc-400 transition-transform duration-150 ${
+                    isManagerDropdownOpen ? "rotate-180 text-zinc-200" : ""
+                  }`}
+                />
+              </button>
+
+              {isManagerDropdownOpen && (
+                <div className="absolute top-full left-0 mt-1.5 w-60 bg-zinc-950 border border-zinc-800/90 rounded-lg shadow-2xl p-2 z-30 font-mono text-xs backdrop-blur-md animate-in fade-in zoom-in-95 duration-100">
+                  <div className="flex items-center justify-between px-2 py-1 border-b border-zinc-800/80 mb-1.5">
+                    <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+                      Managers
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedManagers([])}
+                        className="text-[10px] text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors cursor-pointer"
+                        title="Select all package managers"
+                      >
+                        All
+                      </button>
+                      {isManagerFiltered && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedManagers([])}
+                          className="text-[10px] text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors cursor-pointer"
+                          title="Reset filter"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto space-y-0.5 pr-0.5">
+                    {managers.map((m) => {
+                      const isChecked = !isManagerFiltered || selectedManagers.includes(m);
+                      const count = managerCounts.get(m) || 0;
+                      return (
+                        <div
+                          key={m}
+                          onClick={() => toggleManager(m)}
+                          className="group flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-zinc-900 cursor-pointer transition-colors"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isChecked ? (
+                              <CheckSquare className="w-3.5 h-3.5 text-zinc-200 shrink-0" />
+                            ) : (
+                              <Square className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                            )}
+                            <span
+                              className={`text-xs truncate ${
+                                isChecked ? "text-zinc-200 font-medium" : "text-zinc-500"
+                              }`}
+                            >
+                              {m}
+                            </span>
+                            <span className="text-[10px] text-zinc-500 font-mono">
+                              ({count})
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedManagers([m]);
+                            }}
+                            className="text-[10px] text-zinc-500 hover:text-cyan-400 px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors opacity-70 group-hover:opacity-100 cursor-pointer"
+                            title={`Filter only ${m}`}
+                          >
+                            only
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -409,7 +542,7 @@ export const PackageTable: FC<PackageTableProps> = ({
           <ShieldCheck className="w-8 h-8 text-emerald-500/80 mx-auto mb-2" />
           <h3 className="text-sm font-semibold text-zinc-200">System Protected & Up to Date</h3>
           <p className="text-xs text-zinc-400 mt-1 max-w-sm mx-auto">
-            {search || activeFilter !== "all" || selectedManager !== "all"
+            {search || activeFilter !== "all" || isManagerFiltered
               ? "No packages match the active search or filter criteria."
               : "No outdated packages or unpatched security advisories found across managers."}
           </p>
