@@ -22,7 +22,7 @@ import (
 	"github.com/jankrloz/vanguard/internal/ui"
 )
 
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 func printUsage() {
 	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))

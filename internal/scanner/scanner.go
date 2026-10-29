@@ -452,7 +452,7 @@ func enrichDescriptions(ctx context.Context, packages []domain.Package) {
 			case "cargo", "rust":
 				reqURL := fmt.Sprintf("https://crates.io/api/v1/crates/%s", url.PathEscape(p.Name))
 				if req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil); err == nil {
-					req.Header.Set("User-Agent", "vanguard-cli/0.2.0")
+					req.Header.Set("User-Agent", "vanguard-cli/0.3.0")
 					if resp, err := client.Do(req); err == nil {
 						var data struct {
 							Crate struct {
