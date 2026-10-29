@@ -193,28 +193,6 @@ export function App() {
     );
   };
 
-  const handleUpgradeSubset = async (ids: string[]) => {
-    const validIds = ids.filter((id) => {
-      const p = packages.find((pkg) => pkg.id === id);
-      return p && !p.pinned;
-    });
-    if (validIds.length === 0 || isUpgrading || isScanning) return;
-
-    setIsUpgrading(true);
-    setIsLogOpen(true);
-    setActiveManager(null);
-    setCompletedManagers({});
-    setEvents([]);
-
-    try {
-      await triggerUpgrade(validIds);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Upgrade request failed";
-      setError(msg);
-      setIsUpgrading(false);
-    }
-  };
-
   const handleUpgrade = async () => {
     const selected = packages.filter((p) => p.selected && !p.pinned);
     if (selected.length === 0 || isUpgrading || isScanning) return;
@@ -363,7 +341,6 @@ export function App() {
           onDeselectAll={handleDeselectAll}
           onSelectOnlyFiltered={handleSelectOnlyFiltered}
           onDeselectFiltered={handleDeselectFiltered}
-          onUpgradeSubset={handleUpgradeSubset}
           onToggleManagerSelection={handleToggleManagerSelection}
         />
       </main>

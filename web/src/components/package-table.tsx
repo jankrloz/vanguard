@@ -14,7 +14,6 @@ import {
   MinusSquare,
   Loader2,
   CheckCircle2,
-  ArrowUpCircle,
 } from "lucide-react";
 import type { Package, Vulnerability, FilterType } from "../lib/types";
 
@@ -34,7 +33,6 @@ interface PackageTableProps {
   onDeselectAll: () => void;
   onSelectOnlyFiltered: (filteredIds: string[]) => void;
   onDeselectFiltered: (filteredIds: string[]) => void;
-  onUpgradeSubset: (ids: string[]) => void;
   onToggleManagerSelection: (manager: string) => void;
 }
 
@@ -46,11 +44,10 @@ const ScanningSkeleton: FC = () => (
       </div>
       <h3 className="text-sm font-semibold text-zinc-200 font-mono">Scanning System Package Managers</h3>
       <p className="text-xs text-zinc-400 mt-1.5 max-w-md mx-auto">
-        Querying Homebrew, Cargo, Pip, Gem, NPM, and 140+ package registries via MPM, computing SemVer diffs, and checking OSV.dev vulnerability intelligence...
+        Querying registries via MPM, computing SemVer diffs, and checking OSV.dev vulnerability intelligence...
       </p>
     </div>
 
-    {/* Skeleton Rows */}
     <div className="bg-zinc-900/30 border border-zinc-800/60 rounded-lg overflow-hidden divide-y divide-zinc-800/40">
       <div className="bg-zinc-950/70 px-4 py-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -86,12 +83,10 @@ export const PackageTable: FC<PackageTableProps> = ({
   onTogglePackage,
   onTogglePin,
   onSelectSafe,
-  onSelectSecurity,
   onSelectAll,
   onDeselectAll,
   onSelectOnlyFiltered,
   onDeselectFiltered,
-  onUpgradeSubset,
   onToggleManagerSelection,
 }) => {
   const [search, setSearch] = useState("");
@@ -176,6 +171,17 @@ export const PackageTable: FC<PackageTableProps> = ({
     });
   }, [packages, search, activeFilter, selectedManager]);
 
+  const isFilterActive =
+    activeFilter !== "all" || search.trim() !== "" || selectedManager !== "all";
+
+  const filteredSelectable = useMemo(() => {
+    return filteredPackages.filter((p) => !p.pinned);
+  }, [filteredPackages]);
+
+  const filteredSelected = useMemo(() => {
+    return filteredPackages.filter((p) => p.selected && !p.pinned);
+  }, [filteredPackages]);
+
   // Group by manager
   const grouped = useMemo(() => {
     const map = new Map<string, Package[]>();
@@ -193,34 +199,13 @@ export const PackageTable: FC<PackageTableProps> = ({
     setExpandedVulns((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const isFilterActive =
-    activeFilter !== "all" || search.trim() !== "" || selectedManager !== "all";
-
-  const filteredSelectable = useMemo(() => {
-    return filteredPackages.filter((p) => !p.pinned);
-  }, [filteredPackages]);
-
-  const filteredSelected = useMemo(() => {
-    return filteredPackages.filter((p) => p.selected && !p.pinned);
-  }, [filteredPackages]);
-
-  const filterLabel = useMemo(() => {
-    if (activeFilter === "security") return "CVE Vulnerabilities";
-    if (activeFilter === "safe") return "Safe Updates";
-    if (activeFilter === "major") return "Major Breaking Updates";
-    if (activeFilter === "pinned") return "Pinned Packages";
-    if (selectedManager !== "all") return `Manager: ${selectedManager}`;
-    if (search.trim() !== "") return `Search: "${search}"`;
-    return "";
-  }, [activeFilter, selectedManager, search]);
-
   // If initial scanning and no packages loaded yet, render skeleton
   if (isScanning && packages.length === 0) {
     return <ScanningSkeleton />;
   }
 
   return (
-    <div className="space-y-3.5">
+    <div className="space-y-3">
       {/* Live Upgrade Progress Notification */}
       {isUpgrading && (
         <div className="bg-blue-950/70 border border-blue-800/90 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs font-mono shadow-lg animate-in fade-in">
@@ -238,7 +223,7 @@ export const PackageTable: FC<PackageTableProps> = ({
         </div>
       )}
 
-      {/* Subtle indicator for background rescan when data already exists */}
+      {/* Background rescan subtle banner */}
       {isScanning && packages.length > 0 && (
         <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 bg-zinc-900/60 border border-zinc-800 px-3 py-1.5 rounded-lg animate-pulse">
           <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />
@@ -246,16 +231,16 @@ export const PackageTable: FC<PackageTableProps> = ({
         </div>
       )}
 
-      {/* Controls Bar */}
+      {/* Unified Controls & Scope Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-zinc-900/60 border border-zinc-800/80 p-2.5 rounded-lg">
         {/* Search */}
-        <div className="relative flex-1 max-w-sm">
+        <div className="relative flex-1 max-w-xs">
           <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
           <input
             ref={searchInputRef}
             type="text"
             disabled={isUpgrading}
-            placeholder="Search package, manager, or CVE... (/)"
+            placeholder="Search package or CVE... (/)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-zinc-950/80 border border-zinc-800/90 rounded-md pl-9 pr-8 py-1.5 text-xs font-mono text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600/30 disabled:opacity-50"
@@ -272,7 +257,7 @@ export const PackageTable: FC<PackageTableProps> = ({
           )}
         </div>
 
-        {/* Filter Pills - Order: Critical/CVEs -> Safe -> Major -> All -> Pinned */}
+        {/* Filter Pills */}
         <div className="flex items-center gap-1.5 text-xs flex-wrap">
           {securityPackagesCount > 0 && (
             <button
@@ -362,92 +347,61 @@ export const PackageTable: FC<PackageTableProps> = ({
           )}
         </div>
 
-        {/* Bulk Selection Actions */}
-        <div className="flex items-center gap-1.5 border-t lg:border-t-0 pt-2 lg:pt-0 border-zinc-800/80">
-          {securityPackagesCount > 0 && (
-            <button
-              type="button"
-              disabled={isUpgrading}
-              onClick={onSelectSecurity}
-              className="text-[11px] font-mono text-rose-300 hover:text-rose-100 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 px-2.5 py-1 rounded-md transition-colors font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Select CVEs
-            </button>
-          )}
-          <button
-            type="button"
-            disabled={isUpgrading}
-            onClick={onSelectSafe}
-            className="text-[11px] font-mono text-emerald-400 hover:text-emerald-200 bg-emerald-950/40 hover:bg-emerald-950/70 border border-emerald-900/60 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Select Safe
-          </button>
-          <button
-            type="button"
-            disabled={isUpgrading}
-            onClick={onSelectAll}
-            className="text-[11px] font-mono text-zinc-300 hover:text-zinc-100 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            All
-          </button>
-          <button
-            type="button"
-            disabled={isUpgrading}
-            onClick={onDeselectAll}
-            className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Clear
-          </button>
-        </div>
-      </div>
-
-      {/* Contextual Filter Scope & Action Bar */}
-      {isFilterActive && filteredPackages.length > 0 && (
-        <div className="bg-zinc-900/90 border border-zinc-800 rounded-lg p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono shadow-sm">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-zinc-500">Filtered:</span>
-            <span className="text-zinc-200 font-semibold bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/60">
-              {filterLabel}
-            </span>
-            <span className="text-zinc-400">
-              ({filteredSelected.length} of {filteredPackages.length} selected)
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              disabled={isUpgrading}
-              onClick={() => onSelectOnlyFiltered(filteredPackages.map((p) => p.id))}
-              className="text-[11px] px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer font-medium disabled:opacity-40"
-              title="Deselect all background packages and select only these visible items"
-            >
-              Select Only Visible ({filteredSelectable.length})
-            </button>
-
-            <button
-              type="button"
-              disabled={isUpgrading || filteredSelected.length === 0}
-              onClick={() => onDeselectFiltered(filteredPackages.map((p) => p.id))}
-              className="text-[11px] px-2.5 py-1 rounded bg-zinc-950 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Clear Visible
-            </button>
-
-            {filteredSelected.length > 0 && (
+        {/* Adaptive Contextual Selection Actions */}
+        <div className="flex items-center gap-2 border-t lg:border-t-0 pt-2 lg:pt-0 border-zinc-800/80">
+          {isFilterActive ? (
+            <>
+              <span className="text-[11px] font-mono text-zinc-400">
+                {filteredSelected.length}/{filteredPackages.length} selected
+              </span>
               <button
                 type="button"
                 disabled={isUpgrading}
-                onClick={() => onUpgradeSubset(filteredSelected.map((p) => p.id))}
-                className="text-[11px] px-3 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
+                onClick={() => onSelectOnlyFiltered(filteredPackages.map((p) => p.id))}
+                className="text-[11px] font-mono text-zinc-200 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium disabled:opacity-40"
+                title="Select only the visible filtered packages and clear others"
               >
-                <ArrowUpCircle className="w-3.5 h-3.5" />
-                <span>Upgrade Filtered ({filteredSelected.length})</span>
+                Select Visible ({filteredSelectable.length})
               </button>
-            )}
-          </div>
+              <button
+                type="button"
+                disabled={isUpgrading || filteredSelected.length === 0}
+                onClick={() => onDeselectFiltered(filteredPackages.map((p) => p.id))}
+                className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40"
+              >
+                Clear
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={isUpgrading}
+                onClick={onSelectSafe}
+                className="text-[11px] font-mono text-emerald-400 hover:text-emerald-200 bg-emerald-950/40 hover:bg-emerald-950/70 border border-emerald-900/60 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Select Safe
+              </button>
+              <button
+                type="button"
+                disabled={isUpgrading}
+                onClick={onSelectAll}
+                className="text-[11px] font-mono text-zinc-300 hover:text-zinc-100 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                All
+              </button>
+              <button
+                type="button"
+                disabled={isUpgrading}
+                onClick={onDeselectAll}
+                className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Clear
+              </button>
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Package Groups or Empty State */}
       {grouped.length === 0 ? (
@@ -590,7 +544,7 @@ export const PackageTable: FC<PackageTableProps> = ({
                               hasVuln ? "border-l-2 border-l-rose-500 bg-rose-950/15" : ""
                             } ${isPkgActive ? "bg-blue-950/30 border-l-2 border-l-blue-400" : ""}`}
                           >
-                            {/* Left: Checkbox + Name + Badges */}
+                            {/* Left: Checkbox + Name + Source Link + Pin */}
                             <div className="flex items-center gap-2.5 min-w-0">
                               <button
                                 type="button"
@@ -636,23 +590,6 @@ export const PackageTable: FC<PackageTableProps> = ({
                                   </span>
                                 )}
 
-                                {hasVuln && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => toggleExpand(id, e)}
-                                    className="flex items-center gap-1 text-[10px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-700/80 px-1.5 py-0.2 rounded hover:bg-rose-900 cursor-pointer shrink-0"
-                                    title="Click to view OSV security advisory details"
-                                  >
-                                    <Flame className="w-2.5 h-2.5 text-rose-400" />
-                                    <span>{maxSev} CVE ({vulns.length})</span>
-                                    {isExpanded ? (
-                                      <ChevronDown className="w-2.5 h-2.5" />
-                                    ) : (
-                                      <ChevronRight className="w-2.5 h-2.5" />
-                                    )}
-                                  </button>
-                                )}
-
                                 <button
                                   type="button"
                                   disabled={isUpgrading}
@@ -673,7 +610,7 @@ export const PackageTable: FC<PackageTableProps> = ({
                               </div>
                             </div>
 
-                            {/* Right: Versions + Change Type Badge */}
+                            {/* Right: Versions + Single Authority Badge */}
                             <div className="flex items-center gap-3.5 shrink-0">
                               {/* Version flow */}
                               <div className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
@@ -682,8 +619,8 @@ export const PackageTable: FC<PackageTableProps> = ({
                                 <span className="text-zinc-100 font-semibold">{lat}</span>
                               </div>
 
-                              {/* Semver / Status Badge */}
-                              <div className="w-24 flex justify-end">
+                              {/* Single Badge Authority */}
+                              <div className="w-28 flex justify-end">
                                 {isPkgActive ? (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-700 uppercase tracking-wider">
                                     <Loader2 className="w-2.5 h-2.5 animate-spin" /> RUNNING
@@ -697,9 +634,20 @@ export const PackageTable: FC<PackageTableProps> = ({
                                     FAILED ✗
                                   </span>
                                 ) : hasVuln ? (
-                                  <span className="inline-flex items-center text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-700 uppercase tracking-wider">
-                                    CVE FIX
-                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => toggleExpand(id, e)}
+                                    className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-700 hover:bg-rose-900 cursor-pointer uppercase tracking-wider transition-colors"
+                                    title="Click to expand security advisory details"
+                                  >
+                                    <Flame className="w-2.5 h-2.5 text-rose-400" />
+                                    <span>{maxSev} ({vulns.length})</span>
+                                    {isExpanded ? (
+                                      <ChevronDown className="w-2.5 h-2.5" />
+                                    ) : (
+                                      <ChevronRight className="w-2.5 h-2.5" />
+                                    )}
+                                  </button>
                                 ) : changeType === "major" ? (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800/60 uppercase tracking-wider">
                                     <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
@@ -722,12 +670,12 @@ export const PackageTable: FC<PackageTableProps> = ({
                             </div>
                           </div>
 
-                          {/* Expandable CVE details with OSV.dev deep links */}
+                          {/* Expandable CVE details */}
                           {hasVuln && isExpanded && (
                             <div className="bg-rose-950/20 border-t border-rose-900/40 px-6 py-2.5 text-xs font-mono space-y-2">
                               <div className="text-[10px] font-semibold text-rose-400 uppercase tracking-wider flex items-center justify-between">
-                                <span>Security Advisory Intelligence (OSV.dev):</span>
-                                <span className="text-zinc-500 font-normal">Click CVE ID to open upstream advisory</span>
+                                <span>Security Advisory Intelligence:</span>
+                                <span className="text-zinc-500 font-normal">Click CVE/GHSA ID to inspect upstream advisory</span>
                               </div>
                               {vulns.map((v: Vulnerability, i: number) => {
                                 const fixedIn = v.fixed_in;
