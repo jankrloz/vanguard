@@ -112,11 +112,11 @@ func Banner(version, platform string) string {
 
 	var sb strings.Builder
 	sb.WriteString("\n")
-	sb.WriteString(delta("      ▲\n"))
+	sb.WriteString(delta("      ▲") + "\n")
 	sb.WriteString(delta("     /█\\     ") + StyleBrandName.Render("V A N G U A R D") + "\n")
 	sb.WriteString(delta("    /███\\    ") + StyleTagline.Render("Vulnerability Shield & Package Orchestrator") + "\n")
 	sb.WriteString(delta("    \\███/    ") + StyleMeta.Render("v"+version+" · "+platform) + "\n")
-	sb.WriteString(delta("     \\█/\n"))
+	sb.WriteString(delta("     \\█/") + "\n\n")
 	return sb.String()
 }
 

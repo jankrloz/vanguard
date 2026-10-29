@@ -231,7 +231,7 @@
           <circle cx="32" cy="14" r="3" fill="#00FF9D"/>
         </svg>
         <span>VANGUARD</span>
-        <span class="brand-badge mono">v0.1.2</span>
+        <span class="brand-badge mono">v0.2.0</span>
       </a>
       <nav class="nav-links">
         <a href="#features">Capabilities</a>
@@ -261,7 +261,7 @@
 
       <div class="install-box">
         <div class="install-cmd mono" id="install-text">
-          <span class="prompt">$</span>git clone https://github.com/jankrloz/vanguard.git &amp;&amp; cd vanguard &amp;&amp; task install
+          <span class="prompt">$</span>brew install jankrloz/tap/vanguard
         </div>
         <button class="copy-btn mono" onclick="copyInstall(this)">Copy</button>
       </div>
@@ -277,22 +277,33 @@
         </div>
 
         <div id="pane-cli" class="pane mono">
-<pre style="margin:0;"><span class="c-cyan">  ██╗   ██╗ █████╗ ███╗   ██╗ ██████╗ ██╗   ██╗ █████╗ ██████╗ ██████╗ 
-  ██║   ██║██╔══██╗████╗  ██║██╔════╝ ██║   ██║██╔══██╗██╔══██╗██╔══██╗
-  ╚██╗ ██╔╝███████║██╔██╗ ██║██║  ███╗██║   ██║███████║██████╔╝██║  ██║
-   ╚████╔╝ ██╔══██║██║╚██╗██║██║   ██║██║   ██║██╔══██║██╔══██╗██║  ██║
-    ╚═══╝  ╚═╝  ╚═╝╚═╝ ╚═══╝ ╚██████╔╝ ╚█████╔╝╚═╝  ╚═╝╚═╝  ╚═╝██████╔╝</span>
-  <span class="c-muted">UNIFIED PACKAGE SECURITY &amp; FLEET ORCHESTRATOR</span>  <span class="c-cyan">v0.1.2 · darwin/arm64</span>
+<pre style="margin:0;"><span class="c-cyan">      ▲
+     /█\     </span><span style="color:#F4F4F5;font-weight:700;">V A N G U A R D</span>
+<span class="c-cyan">    /███\    </span><span class="c-muted">Vulnerability Shield &amp; Package Orchestrator</span>
+<span class="c-cyan">    \███/    </span><span class="c-muted">v0.2.0 · darwin/arm64</span>
+<span class="c-cyan">     \█/</span>
+  <span class="c-emerald">✓</span> Discovered 58 outdated packages across active registries
 
-  <span class="c-rose">🚨 3 Vulnerable (1 Critical, 1 High, 1 Medium)</span> · <span class="c-emerald">✓ 22 Safe</span> · <span class="c-amber">⚠️  35 Major</span>
+  <span class="c-rose">CRITICAL &amp; SECURITY ADVISORIES (3)</span>
+  <span class="c-muted">────────────────────────────────────────────────────────────────────</span>
+  <span style="background:#27272A;color:#00F0FF;padding:1px 6px;font-weight:700;">gem</span> <span style="color:#F4F4F5;font-weight:700;">rexml               </span> <span class="c-muted">3.2.5 →</span> <span style="color:#F4F4F5;">3.4.4</span> <span class="c-rose">[CVE-2024-49761 (GHSA-2rxp-v6pw-ch6m)]</span> <span class="badge-crit">🔥 CRITICAL</span>
+    <span class="c-rose">🚨 CVE-2024-49761 (GHSA-2rxp-v6pw-ch6m): REXML ReDoS vulnerability</span>
+    <span class="c-muted">└─ An XML toolkit for Ruby</span>
+  <span style="background:#27272A;color:#00F0FF;padding:1px 6px;font-weight:700;">gem</span> <span style="color:#F4F4F5;font-weight:700;">net-imap            </span> <span class="c-muted">0.2.3 →</span> <span style="color:#F4F4F5;">0.6.3</span> <span class="c-rose">[CVE-2025-25186 (GHSA-7fc5-f82f-cx69)]</span> <span class="badge-high">⚠ HIGH</span>
+    <span class="c-rose">🚨 CVE-2025-25186 (GHSA-7fc5-f82f-cx69): Possible DoS by memory exhaustion in net-imap</span>
+    <span class="c-muted">└─ Ruby client api for Internet Message Access Protocol</span>
+  <span style="background:#27272A;color:#00F0FF;padding:1px 6px;font-weight:700;">gem</span> <span style="color:#F4F4F5;font-weight:700;">rdoc                </span> <span class="c-muted">6.4.0 →</span> <span style="color:#F4F4F5;">7.2.0</span> <span class="c-rose">[CVE-2024-27281 (GHSA-5obj-2p47-6v7q)]</span> <span class="badge-med">● MEDIUM</span>
+    <span class="c-rose">🚨 CVE-2024-27281 (GHSA-5obj-2p47-6v7q): RCE vulnerability with .rdoc_options in RDoc</span>
 
-  <span class="c-muted">MANAGER    PACKAGE                   CURRENT        LATEST         STATUS / ADVISORY</span>
-  <span class="c-muted">──────────────────────────────────────────────────────────────────────────────────────────────────────────────</span>
-  gem        rexml                     3.2.5          3.4.4          <span class="badge-crit">CRITICAL</span> <span class="c-rose">CVE-2024-49761 (GHSA-2rxp-v6pw-ch6m) — REXML ReDoS vulnerability</span> <span class="c-muted">(fix &gt;= 3.3.9)</span>
-  gem        net-imap                  0.2.3          0.6.3          <span class="badge-high">HIGH</span>     <span class="c-orange">CVE-2025-25186 (GHSA-7fc5-f82f-cx69) — DoS via malicious IMAP server</span> <span class="c-muted">(fix &gt;= 0.3.8)</span>
-  gem        rdoc                      6.4.0          7.2.0          <span class="badge-med">MEDIUM</span>   <span class="c-amber">CVE-2024-27281 (GHSA-5obj-2p47-6v7q) — RCE via parsed documentation cache</span> <span class="c-muted">(fix &gt;= 6.4.1.1)</span>
-  brew       ca-certificates           2025-12-02     2026-03-19     <span class="badge-safe">✓ SAFE (PATCH)</span> <span class="c-muted">— Mozilla CA certificate store</span>
-  brew       uv                        0.9.18         0.11.6         <span class="badge-safe">✓ SAFE (MINOR)</span> <span class="c-muted">— Extremely fast Python package installer</span></pre>
+  <span class="c-emerald">SAFE MINOR &amp; PATCH UPDATES (22)</span>
+  <span class="c-muted">────────────────────────────────────────────────────────────────────</span>
+  <span style="background:#27272A;color:#00F0FF;padding:1px 6px;font-weight:700;">brew</span> <span style="color:#F4F4F5;font-weight:700;">ca-certificates     </span> <span class="c-muted">2025-12-02 →</span> <span style="color:#F4F4F5;">2026-03-19</span> <span style="background:#00FF9D;color:#000;padding:1px 6px;font-weight:700;">✓ SAFE</span>
+    <span class="c-muted">└─ Mozilla CA certificate store</span>
+  <span style="background:#27272A;color:#00F0FF;padding:1px 6px;font-weight:700;">brew</span> <span style="color:#F4F4F5;font-weight:700;">uv                  </span> <span class="c-muted">0.9.18 →</span> <span style="color:#F4F4F5;">0.11.6</span> <span style="background:#00FF9D;color:#000;padding:1px 6px;font-weight:700;">✓ SAFE</span>
+    <span class="c-muted">└─ Extremely fast Python package installer and resolver</span>
+
+  <span class="c-muted">────────────────────────────────────────────────────────────────────</span>
+  Total: <span style="color:#F4F4F5;">58</span> │ Critical: <span class="c-rose">1</span> │ High: <span class="c-amber">1</span> │ Med: <span class="c-muted">1</span> │ Safe: <span class="c-emerald">22</span> │ Major: <span class="c-amber">35</span> │ Pinned: 0</pre>
         </div>
 
         <div id="pane-web" class="pane hidden">
@@ -470,7 +481,7 @@
 
   <script>
     function copyInstall(btn) {
-      const cmd = "git clone https://github.com/jankrloz/vanguard.git && cd vanguard && task install";
+      const cmd = "brew install jankrloz/tap/vanguard";
       navigator.clipboard.writeText(cmd).then(() => {
         const orig = btn.textContent;
         btn.textContent = "Copied ✓";

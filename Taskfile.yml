@@ -50,7 +50,7 @@ tasks:
       - go test -v ./...
 
   install:
-    desc: Install the compiled binary to ~/.local/bin as vanguard, vg, and up
+    desc: Install the compiled binary to ~/.local/bin (and sync Homebrew cellar if installed) as vanguard, vg, and up
     deps: [build]
     preconditions:
       - sh: 'test -d {{.INSTALL_DIR}}'
@@ -61,6 +61,15 @@ tasks:
       - chmod +x {{.INSTALL_DIR}}/vanguard
       - ln -sf {{.INSTALL_DIR}}/vanguard {{.INSTALL_DIR}}/vg
       - ln -sf {{.INSTALL_DIR}}/vanguard {{.INSTALL_DIR}}/up
+      - |
+        if [ -L /opt/homebrew/bin/vanguard ]; then
+          CELLAR_BIN=$(readlink -f /opt/homebrew/bin/vanguard 2>/dev/null || true)
+          if [ -n "$CELLAR_BIN" ] && [ -w "$(dirname "$CELLAR_BIN")" ]; then
+            chmod u+w "$CELLAR_BIN" 2>/dev/null || true
+            cp -f {{.BIN}} "$CELLAR_BIN"
+            chmod 555 "$CELLAR_BIN"
+          fi
+        fi
       - 'echo "Installed vanguard to {{.INSTALL_DIR}}/vanguard (aliases: vg, up)"'
 
   run:
