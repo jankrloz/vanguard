@@ -20,6 +20,101 @@ import (
 	"github.com/jankrloz/vanguard/internal/ui"
 )
 
+func computeColumnWidths(pkgs []domain.Package) (mgrWidth, nameWidth, verWidth int) {
+	mgrWidth = 4
+	nameWidth = 20
+	verWidth = 15
+	for _, p := range pkgs {
+		if len(p.Manager) > mgrWidth {
+			mgrWidth = len(p.Manager)
+		}
+		if len(p.Name) > nameWidth {
+			nameWidth = len(p.Name)
+		}
+		vLen := len(p.CurrentVersion) + 3 + len(p.LatestVersion)
+		if vLen > verWidth {
+			verWidth = vLen
+		}
+	}
+	if mgrWidth > 10 {
+		mgrWidth = 10
+	}
+	if nameWidth > 28 {
+		nameWidth = 28
+	}
+	if verWidth > 26 {
+		verWidth = 26
+	}
+	return mgrWidth, nameWidth, verWidth
+}
+
+func formatPackageRow(p domain.Package, mgrWidth, nameWidth, verWidth int) string {
+	var sb strings.Builder
+
+	badge := ui.BadgeSafe()
+	if p.HasVulnerability && len(p.Vulnerabilities) > 0 {
+		badge = ui.BadgeCVE(p.Vulnerabilities[0].ID, p.MaxSeverity)
+	} else if p.ChangeType == domain.ChangeMajor {
+		badge = ui.BadgeMajor()
+	}
+
+	pinBadge := ""
+	if p.Pinned {
+		pinBadge = " " + ui.BadgePinned()
+	}
+
+	displayName := p.Name
+	if len(displayName) > nameWidth {
+		displayName = displayName[:nameWidth-1] + "…"
+	}
+	namePad := strings.Repeat(" ", max(0, nameWidth-len(displayName)))
+
+	rawVer := p.CurrentVersion + " → " + p.LatestVersion
+	verRuneLen := len(p.CurrentVersion) + 3 + len(p.LatestVersion)
+	verPad := strings.Repeat(" ", max(0, verWidth-verRuneLen))
+	styledVer := ui.StyleSubtle.Render(p.CurrentVersion+" →") + " " + ui.StyleWhiteBold.Render(p.LatestVersion) + verPad
+	_ = rawVer
+
+	sb.WriteString(fmt.Sprintf("  %s  %s%s  %s  %s%s\n",
+		ui.BadgeManagerPadded(p.Manager, mgrWidth),
+		ui.StyleWhiteBold.Render(displayName),
+		namePad,
+		styledVer,
+		badge,
+		pinBadge,
+	))
+
+	subIndent := strings.Repeat(" ", 4)
+	if p.HasVulnerability && len(p.Vulnerabilities) > 0 {
+		for _, v := range p.Vulnerabilities {
+			summary := v.Summary
+			if summary == "" {
+				summary = "Security advisory fix available in upstream release"
+			}
+			srcTag := ""
+			if v.Source != "" {
+				srcTag = " " + ui.StyleSubtle.Render("["+v.Source+"]")
+			}
+			sb.WriteString(fmt.Sprintf("%s%s%s: %s\n",
+				subIndent,
+				ui.StyleRoseBold.Render("🚨 "+v.ID),
+				srcTag,
+				ui.StyleRoseText.Render(summary),
+			))
+		}
+	}
+
+	if p.Description != "" && (len(p.Vulnerabilities) == 0 || p.Description != p.Vulnerabilities[0].Summary) {
+		sb.WriteString(fmt.Sprintf("%s%s %s\n",
+			subIndent,
+			ui.StyleSubtle.Render("└─"),
+			ui.StyleZinc.Render(p.Description),
+		))
+	}
+
+	return sb.String()
+}
+
 func runCheck(ctx context.Context, args []string) int {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	secOnly := fs.Bool("security-only", false, "Display only packages with known CVEs")
@@ -55,6 +150,8 @@ func runCheck(ctx context.Context, args []string) int {
 		return 0
 	}
 
+	mgrWidth, nameWidth, verWidth := computeColumnWidths(candidates)
+
 	// Categorize
 	var cves, safes, majors, others []domain.Package
 	for _, p := range candidates {
@@ -76,42 +173,10 @@ func runCheck(ctx context.Context, args []string) int {
 		fmt.Println(ui.SectionHeader(title, len(pkgs), headerColor))
 		for i, p := range pkgs {
 			if *limit > 0 && i >= *limit {
-				fmt.Printf("    %s... and %d more items%s\n", ui.DarkZinc, len(pkgs)-*limit, ui.Reset)
+				fmt.Printf("    %s\n", ui.StyleSubtle.Render(fmt.Sprintf("... and %d more items", len(pkgs)-*limit)))
 				break
 			}
-			badge := ui.BadgeSafe()
-			if p.HasVulnerability {
-				badge = ui.BadgeCVE(p.Vulnerabilities[0].ID, p.MaxSeverity)
-			} else if p.ChangeType == domain.ChangeMajor {
-				badge = ui.BadgeMajor()
-			}
-			pinBadge := ""
-			if p.Pinned {
-				pinBadge = fmt.Sprintf(" %s[PINNED]%s", ui.Amber, ui.Reset)
-			}
-
-			fmt.Printf("  %s %s%-20s%s %s%s → %s%s %s%s\n",
-				ui.BadgeManager(p.Manager),
-				ui.Bold+ui.White, p.Name, ui.Reset,
-				ui.Zinc, p.CurrentVersion,
-				ui.White, p.LatestVersion+ui.Reset,
-				badge,
-				pinBadge,
-			)
-
-			if p.Description != "" && (len(p.Vulnerabilities) == 0 || p.Description != p.Vulnerabilities[0].Summary) {
-				fmt.Printf("    %s└─ %s%s%s\n", ui.DarkZinc, ui.Zinc, p.Description, ui.Reset)
-			}
-
-			if p.HasVulnerability && len(p.Vulnerabilities) > 0 {
-				for _, v := range p.Vulnerabilities {
-					summary := v.Summary
-					if summary == "" {
-						summary = "Security advisory fix available in upstream release"
-					}
-					fmt.Printf("    %s🚨 %s [%s]: %s%s\n", ui.Rose, v.ID, v.Source, summary, ui.Reset)
-				}
-			}
+			fmt.Print(formatPackageRow(p, mgrWidth, nameWidth, verWidth))
 		}
 	}
 
@@ -120,17 +185,19 @@ func runCheck(ctx context.Context, args []string) int {
 	printGroup("MAJOR BREAKING UPDATES", majors, ui.Amber)
 	printGroup("OTHER PACKAGES", others, ui.Zinc)
 
-	summaryText := fmt.Sprintf(
-		"Total: %s%d%s │ Critical: %s%d%s │ High: %s%d%s │ Med: %s%d%s │ Safe: %s%d%s │ Major: %s%d%s │ Pinned: %d",
-		ui.White, res.Summary.TotalPackages, ui.Reset,
-		ui.Rose+ui.Bold, res.Summary.CriticalCount, ui.Reset,
-		ui.Amber, res.Summary.HighCount, ui.Reset,
-		ui.Zinc, res.Summary.MediumCount, ui.Reset,
-		ui.Emerald, res.Summary.SafeCount, ui.Reset,
-		ui.Amber, res.Summary.MajorCount, ui.Reset,
-		res.Summary.PinnedCount,
-	)
-	fmt.Printf("\n  %s\n  %s\n\n", ui.DarkZinc+strings.Repeat("─", 68)+ui.Reset, summaryText)
+	sep := ui.StyleSubtle.Render(" │ ")
+	summaryText := strings.Join([]string{
+		"Total: " + ui.StyleWhiteBold.Render(fmt.Sprintf("%d", res.Summary.TotalPackages)),
+		"Critical: " + ui.StyleRoseBold.Render(fmt.Sprintf("%d", res.Summary.CriticalCount)),
+		"High: " + ui.StyleOrangeBold.Render(fmt.Sprintf("%d", res.Summary.HighCount)),
+		"Med: " + ui.StyleAmberBold.Render(fmt.Sprintf("%d", res.Summary.MediumCount)),
+		"Safe: " + ui.StyleEmeraldBold.Render(fmt.Sprintf("%d", res.Summary.SafeCount)),
+		"Major: " + ui.StyleAmberBold.Render(fmt.Sprintf("%d", res.Summary.MajorCount)),
+		"Pinned: " + ui.StyleZinc.Render(fmt.Sprintf("%d", res.Summary.PinnedCount)),
+	}, sep)
+
+	divider := ui.StyleSubtle.Render(strings.Repeat("─", 76))
+	fmt.Printf("\n  %s\n  %s\n\n", divider, summaryText)
 
 	if res.Summary.SecurityFixCount > 0 {
 		return 1
@@ -149,8 +216,7 @@ func runApply(ctx context.Context, args []string) int {
 
 	yes := *autoYes || *autoYesShort
 
-	fmt.Println("\n  ▲ VANGUARD — Headless Package Upgrade")
-	fmt.Println("  ──────────────────────────────────────")
+	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
 
 	_ = auth.EnsureSudo()
 	_ = config.EnsureMPMConfig()
@@ -160,7 +226,7 @@ func runApply(ctx context.Context, args []string) int {
 	res, err := s.Scan(ctx)
 	if err != nil {
 		stopSpinner("")
-		fmt.Fprintf(os.Stderr, "  ✗ Scan failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "  %s✗ Scan failed: %v%s\n", ui.Rose, err, ui.Reset)
 		return 1
 	}
 	stopSpinner(fmt.Sprintf("Scan completed (%d candidate packages found)", len(res.Packages)))
@@ -194,73 +260,50 @@ func runApply(ctx context.Context, args []string) int {
 		return 0
 	}
 
-	fmt.Printf("\n  %sTargeting %d packages for upgrade:%s\n", ui.Bold+ui.White, len(candidates), ui.Reset)
-	for _, p := range candidates {
-		badge := ui.BadgeSafe()
-		if p.HasVulnerability {
-			badge = ui.BadgeCVE(p.Vulnerabilities[0].ID, p.MaxSeverity)
-		} else if p.ChangeType == domain.ChangeMajor {
-			badge = ui.BadgeMajor()
-		}
+	mgrWidth, nameWidth, verWidth := computeColumnWidths(candidates)
 
-		fmt.Printf("    • %s %s%-18s%s %s%s → %s%s %s\n",
-			ui.BadgeManager(p.Manager),
-			ui.Bold+ui.White, p.Name, ui.Reset,
-			ui.Zinc, p.CurrentVersion,
-			ui.White, p.LatestVersion+ui.Reset,
-			badge,
-		)
-		if p.Description != "" && (len(p.Vulnerabilities) == 0 || p.Description != p.Vulnerabilities[0].Summary) {
-			fmt.Printf("      %s└─ %s%s%s\n", ui.DarkZinc, ui.Zinc, p.Description, ui.Reset)
-		}
-		if p.HasVulnerability && len(p.Vulnerabilities) > 0 {
-			for _, v := range p.Vulnerabilities {
-				summary := v.Summary
-				if summary == "" {
-					summary = "Security advisory fix available in upstream release"
-				}
-				fmt.Printf("      %s🚨 %s [%s]: %s%s\n", ui.Rose, v.ID, v.Source, summary, ui.Reset)
-			}
-		}
+	fmt.Println(ui.SectionHeader("QUEUED FOR UPGRADE", len(candidates), "#00F0FF"))
+	for _, p := range candidates {
+		fmt.Print(formatPackageRow(p, mgrWidth, nameWidth, verWidth))
 	}
 
 	if !yes {
-		fmt.Printf("\n  %sProceed with upgrade? [y/N]:%s ", ui.Bold+ui.Cyan, ui.Reset)
+		fmt.Printf("\n  %s ", ui.StyleCyanBold.Render("Proceed with upgrade? [y/N]:"))
 		reader := bufio.NewReader(os.Stdin)
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(strings.ToLower(input))
 		if input != "y" && input != "yes" {
-			fmt.Printf("  %sAborted by user.%s\n\n", ui.Zinc, ui.Reset)
+			fmt.Printf("  %s\n\n", ui.StyleZinc.Render("Aborted by user."))
 			return 0
 		}
 	}
 
-	fmt.Printf("\n  %sExecuting upgrades...%s\n", ui.Cyan, ui.Reset)
+	fmt.Printf("\n  %s\n", ui.StyleCyanBold.Render("Executing upgrades..."))
 	execEngine := executor.New()
 
 	err = execEngine.ExecuteUpgrades(ctx, candidates, func(ev domain.UpgradeEvent) {
 		switch ev.Type {
 		case "start":
-			fmt.Printf("  %s▶%s %s\n", ui.Cyan, ui.Reset, ev.Message)
+			fmt.Printf("  %s %s\n", ui.StyleCyanBold.Render("▶"), ev.Message)
 		case "package_start":
-			fmt.Printf("\n  %s==>%s %s%s%s\n", ui.Cyan, ui.Reset, ui.Bold+ui.White, ev.Message, ui.Reset)
+			fmt.Printf("\n  %s %s\n", ui.StyleCyanBold.Render("==>"), ui.StyleWhiteBold.Render(ev.Message))
 		case "log":
-			fmt.Printf("    %s%s%s\n", ui.Zinc, ev.Message, ui.Reset)
+			fmt.Printf("    %s\n", ui.StyleZinc.Render(ev.Message))
 		case "package_done":
 			if ev.Status == "ok" {
-				fmt.Printf("  %s✓ %s%s\n", ui.Emerald, ev.Message, ui.Reset)
+				fmt.Printf("  %s\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message))
 			} else {
-				fmt.Printf("  %s✗ %s%s\n", ui.Rose, ev.Message, ui.Reset)
+				fmt.Printf("  %s\n", ui.StyleRoseBold.Render("✗ "+ev.Message))
 			}
 		case "complete":
-			fmt.Printf("\n  %s✓ %s%s\n\n", ui.Emerald+ui.Bold, ev.Message, ui.Reset)
+			fmt.Printf("\n  %s\n\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message))
 		case "error":
-			fmt.Printf("\n  %s✗ %s%s\n\n", ui.Rose+ui.Bold, ev.Message, ui.Reset)
+			fmt.Printf("\n  %s\n\n", ui.StyleRoseBold.Render("✗ "+ev.Message))
 		}
 	})
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "  %s✗ Upgrade run failed: %v%s\n", ui.Rose, err, ui.Reset)
+		fmt.Fprintf(os.Stderr, "  %s\n", ui.StyleRoseBold.Render(fmt.Sprintf("✗ Upgrade run failed: %v", err)))
 		return 1
 	}
 
@@ -273,37 +316,44 @@ func runHistory(args []string) int {
 	_ = fs.Parse(args)
 
 	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
-	fmt.Printf("  %sAudit Upgrade History Log%s\n", ui.Bold+ui.White, ui.Reset)
-	fmt.Println(ui.DarkZinc + strings.Repeat("─", 68) + ui.Reset)
+	fmt.Println(ui.SectionHeader("AUDIT UPGRADE HISTORY LOG", *limit, "#00F0FF"))
 
 	entries, err := history.ReadRecent(*limit)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "  %s✗ Failed to read audit log: %v%s\n", ui.Rose, err, ui.Reset)
+		fmt.Fprintf(os.Stderr, "  %s\n", ui.StyleRoseBold.Render(fmt.Sprintf("✗ Failed to read audit log: %v", err)))
 		return 1
 	}
 
 	if len(entries) == 0 {
-		fmt.Printf("  No upgrade history recorded yet in %s\n\n", history.LogPath())
+		fmt.Printf("  %s\n\n", ui.StyleZinc.Render("No upgrade history recorded yet in "+history.LogPath()))
 		return 0
 	}
 
+	mgrWidth := 4
 	for _, e := range entries {
-		statusColor := ui.Emerald
-		if e.Status != "ok" {
-			statusColor = ui.Rose
+		if len(e.Manager) > mgrWidth {
+			mgrWidth = len(e.Manager)
 		}
+	}
 
-		fmt.Printf("  %s%s%s  %s  %s%-22s%s  %s%s → %s%s  %s[%s]%s\n",
-			ui.DarkZinc, e.Timestamp.Format("2006-01-02 15:04:05"), ui.Reset,
-			ui.BadgeManager(e.Manager),
-			ui.Bold+ui.White, e.PackageID, ui.Reset,
-			ui.Zinc, e.FromVersion,
-			ui.White, e.ToVersion,
-			statusColor, e.Status, ui.Reset,
+	for _, e := range entries {
+		statusBadge := ui.StyleSafeBadge.Render("OK")
+		if e.Status != "ok" {
+			statusBadge = ui.StyleCriticalBadge.Render("FAILED")
+		}
+		cleanPkg := strings.TrimPrefix(e.PackageID, e.Manager+":")
+
+		fmt.Printf("  %s  %s  %-22s  %s %s  %s\n",
+			ui.StyleSubtle.Render(e.Timestamp.Format("2006-01-02 15:04:05")),
+			ui.BadgeManagerPadded(e.Manager, mgrWidth),
+			ui.StyleWhiteBold.Render(cleanPkg),
+			ui.StyleSubtle.Render(e.FromVersion+" →"),
+			ui.StyleWhiteBold.Render(e.ToVersion),
+			statusBadge,
 		)
 	}
 
-	fmt.Printf("\n  %sShowing %d most recent records from %s%s\n\n", ui.DarkZinc, len(entries), history.LogPath(), ui.Reset)
+	fmt.Printf("\n  %s\n\n", ui.StyleSubtle.Render(fmt.Sprintf("Showing %d most recent records from %s", len(entries), history.LogPath())))
 	return 0
 }
 
@@ -312,9 +362,9 @@ func runMonitor(ctx context.Context, args []string) int {
 	interval := fs.Duration("interval", 1*time.Hour, "Check frequency interval (e.g. 30m, 1h, 4h)")
 	_ = fs.Parse(args)
 
-	fmt.Println("\n  ▲ VANGUARD — Background Security Monitor")
-	fmt.Printf("  Active polling interval: %v\n", *interval)
-	fmt.Println("  Press Ctrl+C to terminate.")
+	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
+	fmt.Printf("  %s %v\n", ui.StyleZinc.Render("Active polling interval:"), *interval)
+	fmt.Printf("  %s\n\n", ui.StyleSubtle.Render("Press Ctrl+C to terminate."))
 
 	s := scanner.New()
 
@@ -322,20 +372,20 @@ func runMonitor(ctx context.Context, args []string) int {
 		fmt.Printf("  [%s] Scanning for vulnerabilities...\n", time.Now().Format("15:04:05"))
 		res, err := s.Scan(ctx)
 		if err != nil {
-			fmt.Printf("  ⚠️  Scan failed: %v\n", err)
+			fmt.Printf("  %s\n", ui.StyleAmberBold.Render(fmt.Sprintf("⚠ Scan failed: %v", err)))
 			return
 		}
 
 		if res.Summary.SecurityFixCount > 0 {
 			msg := fmt.Sprintf("%d urgent security CVE fixes available across your packages.", res.Summary.SecurityFixCount)
-			fmt.Printf("  🚨 ALERT: %s\n", msg)
+			fmt.Printf("  %s\n", ui.StyleRoseBold.Render("🚨 ALERT: "+msg))
 
 			if runtime.GOOS == "darwin" {
 				script := fmt.Sprintf(`display notification %q with title "Vanguard Security Shield" sound name "Ping"`, msg)
 				_ = exec.Command("osascript", "-e", script).Run()
 			}
 		} else {
-			fmt.Printf("  ✓ System clean (%d outdated packages, 0 CVEs)\n", res.Summary.TotalPackages)
+			fmt.Printf("  %s\n", ui.StyleEmeraldBold.Render(fmt.Sprintf("✓ System clean (%d outdated packages, 0 CVEs)", res.Summary.TotalPackages)))
 		}
 	}
 
@@ -357,12 +407,12 @@ func runMonitor(ctx context.Context, args []string) int {
 
 func runSweep(ctx context.Context) int {
 	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
-	fmt.Printf("  %sDeep System Maintenance Sweep (Topgrade)%s\n", ui.Bold+ui.White, ui.Reset)
-	fmt.Println(ui.DarkZinc + strings.Repeat("─", 68) + ui.Reset)
-	fmt.Printf("  %s• Git repositories, submodules, and clean worktrees%s\n", ui.Zinc, ui.Reset)
-	fmt.Printf("  %s• Toolchains & environments (Rust, Go, Python, Node, Ruby)%s\n", ui.Zinc, ui.Reset)
-	fmt.Printf("  %s• Shell frameworks, editor extensions, containers%s\n", ui.Zinc, ui.Reset)
-	fmt.Printf("  %s• macOS App Store & system package caches%s\n\n", ui.Zinc, ui.Reset)
+	fmt.Printf("  %s\n", ui.StyleWhiteBold.Render("Deep System Maintenance Sweep (Topgrade)"))
+	fmt.Printf("  %s\n", ui.StyleSubtle.Render(strings.Repeat("─", 76)))
+	fmt.Printf("  %s\n", ui.StyleZinc.Render("• Git repositories, submodules, and clean worktrees"))
+	fmt.Printf("  %s\n", ui.StyleZinc.Render("• Toolchains & environments (Rust, Go, Python, Node, Ruby)"))
+	fmt.Printf("  %s\n", ui.StyleZinc.Render("• Shell frameworks, editor extensions, containers"))
+	fmt.Printf("  %s\n\n", ui.StyleZinc.Render("• macOS App Store & system package caches"))
 
 	_ = auth.EnsureSudo()
 	_ = config.EnsureMPMConfig()
@@ -371,24 +421,24 @@ func runSweep(ctx context.Context) int {
 	err := execEngine.ExecuteTopgrade(ctx, func(ev domain.UpgradeEvent) {
 		switch ev.Type {
 		case "start":
-			fmt.Printf("  %s▶%s %s\n", ui.Cyan, ui.Reset, ev.Message)
+			fmt.Printf("  %s %s\n", ui.StyleCyanBold.Render("▶"), ev.Message)
 		case "log":
-			fmt.Printf("    %s%s%s\n", ui.Zinc, ev.Message, ui.Reset)
+			fmt.Printf("    %s\n", ui.StyleZinc.Render(ev.Message))
 		case "package_done":
 			if ev.Status == "ok" {
-				fmt.Printf("  %s✓ %s%s\n", ui.Emerald, ev.Message, ui.Reset)
+				fmt.Printf("  %s\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message))
 			} else {
-				fmt.Printf("  %s✗ %s%s\n", ui.Rose, ev.Message, ui.Reset)
+				fmt.Printf("  %s\n", ui.StyleRoseBold.Render("✗ "+ev.Message))
 			}
 		case "complete":
-			fmt.Printf("\n  %s✓ %s%s\n\n", ui.Emerald+ui.Bold, ev.Message, ui.Reset)
+			fmt.Printf("\n  %s\n\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message))
 		case "error":
-			fmt.Printf("\n  %s✗ %s%s\n\n", ui.Rose+ui.Bold, ev.Message, ui.Reset)
+			fmt.Printf("\n  %s\n\n", ui.StyleRoseBold.Render("✗ "+ev.Message))
 		}
 	})
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "  %s✗ Sweep failed: %v%s\n\n", ui.Rose, err, ui.Reset)
+		fmt.Fprintf(os.Stderr, "  %s\n\n", ui.StyleRoseBold.Render(fmt.Sprintf("✗ Sweep failed: %v", err)))
 		return 1
 	}
 	return 0

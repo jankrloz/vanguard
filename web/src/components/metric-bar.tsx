@@ -36,6 +36,7 @@ export const MetricBar: FC<MetricBarProps> = ({
       <button
         type="button"
         onClick={() => handleCardClick("security")}
+        aria-pressed={activeFilter === "security"}
         className={`text-left rounded-lg p-3 flex flex-col justify-between border transition-all cursor-pointer ${
           activeFilter === "security"
             ? "bg-rose-950/50 border-rose-500"
@@ -44,22 +45,22 @@ export const MetricBar: FC<MetricBarProps> = ({
             : "bg-zinc-900/50 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/80"
         }`}
       >
-        <div className="flex items-center justify-between w-full">
+        <div className="flex items-center justify-between gap-1.5 w-full">
           <span
-            className={`text-[11px] font-mono uppercase tracking-wider flex items-center gap-1.5 ${
+            className={`text-[11px] font-mono uppercase tracking-wider flex items-center gap-1.5 truncate ${
               summary.security_fix_count > 0 ? "text-rose-400 font-semibold" : "text-zinc-400"
             }`}
           >
-            <ShieldAlert className={`w-3.5 h-3.5 ${summary.security_fix_count > 0 ? "text-rose-400" : "text-zinc-500"}`} />
-            Vulnerabilities
+            <ShieldAlert className={`w-3.5 h-3.5 shrink-0 ${summary.security_fix_count > 0 ? "text-rose-400" : "text-zinc-400"}`} />
+            <span className="truncate">Vulnerabilities</span>
           </span>
           {activeFilter === "security" && (
-            <span className="text-[10px] font-mono font-medium text-rose-400">ACTIVE</span>
+            <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" title="Active filter" />
           )}
         </div>
         <div className="flex items-baseline justify-between gap-2 flex-wrap mt-2.5">
           {isInitialScanning ? (
-            <span className="text-2xl font-mono font-semibold text-zinc-600 animate-pulse">--</span>
+            <span className="text-2xl font-mono font-semibold text-zinc-500 animate-pulse">--</span>
           ) : (
             <span
               className={`text-2xl font-mono font-semibold tabular-nums ${
@@ -98,30 +99,31 @@ export const MetricBar: FC<MetricBarProps> = ({
       <button
         type="button"
         onClick={() => handleCardClick("safe")}
+        aria-pressed={activeFilter === "safe"}
         className={`text-left rounded-lg p-3 flex flex-col justify-between border transition-all cursor-pointer ${
           activeFilter === "safe"
             ? "bg-emerald-950/40 border-emerald-500"
             : "bg-zinc-900/50 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/80"
         }`}
       >
-        <div className="flex items-center justify-between w-full">
-          <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400/90 flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            Safe Updates
+        <div className="flex items-center justify-between gap-1.5 w-full">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400/90 flex items-center gap-1.5 truncate">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="truncate">Safe Updates</span>
           </span>
           {activeFilter === "safe" && (
-            <span className="text-[10px] font-mono font-medium text-emerald-400">ACTIVE</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Active filter" />
           )}
         </div>
-        <div className="flex items-baseline justify-between mt-2.5">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap mt-2.5">
           {isInitialScanning ? (
-            <span className="text-2xl font-mono font-semibold text-zinc-600 animate-pulse">--</span>
+            <span className="text-2xl font-mono font-semibold text-zinc-500 animate-pulse">--</span>
           ) : (
             <span className="text-2xl font-mono font-semibold tabular-nums text-emerald-400">
               {summary.safe_count}
             </span>
           )}
-          <span className="text-[11px] font-mono text-zinc-400">Minor & Patch</span>
+          <span className="text-[11px] font-mono text-zinc-400">Minor &amp; Patch</span>
         </div>
       </button>
 
@@ -129,24 +131,25 @@ export const MetricBar: FC<MetricBarProps> = ({
       <button
         type="button"
         onClick={() => handleCardClick("major")}
+        aria-pressed={activeFilter === "major"}
         className={`text-left rounded-lg p-3 flex flex-col justify-between border transition-all cursor-pointer ${
           activeFilter === "major"
             ? "bg-amber-950/40 border-amber-500"
             : "bg-zinc-900/50 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/80"
         }`}
       >
-        <div className="flex items-center justify-between w-full">
-          <span className="text-[11px] font-mono uppercase tracking-wider text-amber-400/90 flex items-center gap-1.5">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-            Major Breaking
+        <div className="flex items-center justify-between gap-1.5 w-full">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-amber-400/90 flex items-center gap-1.5 truncate">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="truncate">Major Breaking</span>
           </span>
           {activeFilter === "major" && (
-            <span className="text-[10px] font-mono font-medium text-amber-400">ACTIVE</span>
+            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Active filter" />
           )}
         </div>
-        <div className="flex items-baseline justify-between mt-2.5">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap mt-2.5">
           {isInitialScanning ? (
-            <span className="text-2xl font-mono font-semibold text-zinc-600 animate-pulse">--</span>
+            <span className="text-2xl font-mono font-semibold text-zinc-500 animate-pulse">--</span>
           ) : (
             <span className="text-2xl font-mono font-semibold tabular-nums text-amber-300">
               {summary.major_count}
@@ -160,24 +163,25 @@ export const MetricBar: FC<MetricBarProps> = ({
       <button
         type="button"
         onClick={() => handleCardClick("all")}
+        aria-pressed={activeFilter === "all"}
         className={`text-left rounded-lg p-3 flex flex-col justify-between border transition-all cursor-pointer ${
           activeFilter === "all"
             ? "bg-zinc-900 border-zinc-500"
             : "bg-zinc-900/50 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/80"
         }`}
       >
-        <div className="flex items-center justify-between w-full">
-          <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-            <PackageIcon className="w-3.5 h-3.5 text-zinc-400" />
-            All Updates
+        <div className="flex items-center justify-between gap-1.5 w-full">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 flex items-center gap-1.5 truncate">
+            <PackageIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+            <span className="truncate">All Updates</span>
           </span>
           {activeFilter === "all" && (
-            <span className="text-[10px] font-mono font-medium text-zinc-300">ACTIVE</span>
+            <span className="w-2 h-2 rounded-full bg-zinc-300 shrink-0" title="Active filter" />
           )}
         </div>
-        <div className="flex items-baseline justify-between mt-2.5">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap mt-2.5">
           {isInitialScanning ? (
-            <span className="text-2xl font-mono font-semibold text-zinc-600 animate-pulse">--</span>
+            <span className="text-2xl font-mono font-semibold text-zinc-500 animate-pulse">--</span>
           ) : (
             <span className="text-2xl font-mono font-semibold tabular-nums text-zinc-100">
               {summary.total_packages}
@@ -193,24 +197,25 @@ export const MetricBar: FC<MetricBarProps> = ({
       <button
         type="button"
         onClick={() => handleCardClick("pinned")}
+        aria-pressed={activeFilter === "pinned"}
         className={`text-left rounded-lg p-3 flex flex-col justify-between border transition-all cursor-pointer ${
           activeFilter === "pinned"
             ? "bg-zinc-900 border-zinc-500"
             : "bg-zinc-900/50 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/80"
         }`}
       >
-        <div className="flex items-center justify-between w-full">
-          <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-            <Pin className="w-3.5 h-3.5 text-zinc-400" />
-            Pinned / Held
+        <div className="flex items-center justify-between gap-1.5 w-full">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 flex items-center gap-1.5 truncate">
+            <Pin className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+            <span className="truncate">Pinned / Held</span>
           </span>
           {activeFilter === "pinned" && (
-            <span className="text-[10px] font-mono font-medium text-zinc-300">ACTIVE</span>
+            <span className="w-2 h-2 rounded-full bg-zinc-300 shrink-0" title="Active filter" />
           )}
         </div>
-        <div className="flex items-baseline justify-between mt-2.5">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap mt-2.5">
           {isInitialScanning ? (
-            <span className="text-2xl font-mono font-semibold text-zinc-600 animate-pulse">--</span>
+            <span className="text-2xl font-mono font-semibold text-zinc-500 animate-pulse">--</span>
           ) : (
             <span className="text-2xl font-mono font-semibold tabular-nums text-zinc-300">
               {summary.pinned_count}

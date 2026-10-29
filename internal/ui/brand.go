@@ -11,18 +11,20 @@ import (
 	"golang.org/x/term"
 )
 
-// Brand Palette Tokens
+// Brand Palette Tokens (aligned 1:1 with Web & Static Site)
 var (
 	ColorCyan    = lipgloss.Color("#00F0FF") // Vanguard Electric Cyan (Core Identity)
 	ColorCyanDim = lipgloss.Color("#0090A0")
+	ColorIndigo  = lipgloss.Color("#6366F1") // Accent Indigo
 	ColorRose    = lipgloss.Color("#FF2E93") // Threat Rose (Critical Zero-Days & Advisories)
-	ColorOrange  = lipgloss.Color("#FF8A00") // High Severity
+	ColorOrange  = lipgloss.Color("#F97316") // High Severity
 	ColorAmber   = lipgloss.Color("#FFB800") // Warning / Major Breaking Changes
 	ColorEmerald = lipgloss.Color("#00FF9D") // Safe Updates (Verified SemVer)
-	ColorZinc    = lipgloss.Color("#A1A1AA") // Subtitles / Metadata
-	ColorDark    = lipgloss.Color("#27272A") // Subtle Borders / Chips
+	ColorZinc    = lipgloss.Color("#A1A1AA") // Subtitles / Descriptions
+	ColorSubtle  = lipgloss.Color("#71717A") // Metadata / Dividers
+	ColorDark    = lipgloss.Color("#27272A") // Subtle Borders / Badge Chips
 	ColorDeep    = lipgloss.Color("#09090B") // Canvas background
-	ColorWhite   = lipgloss.Color("#F4F4F5")
+	ColorWhite   = lipgloss.Color("#FAFAFA")
 )
 
 // Lip Gloss Base Styles
@@ -35,7 +37,7 @@ var (
 			Foreground(ColorZinc)
 
 	StyleMeta = lipgloss.NewStyle().
-			Foreground(ColorDark)
+			Foreground(ColorSubtle)
 
 	StyleSectionTitle = lipgloss.NewStyle().
 				Bold(true).
@@ -48,31 +50,31 @@ var (
 				Bold(true)
 
 	StyleSafeBadge = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#000000")).
+			Foreground(lipgloss.Color("#09090B")).
 			Background(ColorEmerald).
 			Padding(0, 1).
 			Bold(true)
 
 	StyleMajorBadge = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#000000")).
+			Foreground(lipgloss.Color("#09090B")).
 			Background(ColorAmber).
 			Padding(0, 1).
 			Bold(true)
 
 	StyleCriticalBadge = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FFFFFF")).
+				Foreground(lipgloss.Color("#09090B")).
 				Background(ColorRose).
 				Padding(0, 1).
 				Bold(true)
 
 	StyleHighBadge = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#000000")).
+			Foreground(lipgloss.Color("#09090B")).
 			Background(ColorOrange).
 			Padding(0, 1).
 			Bold(true)
 
 	StyleMediumBadge = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#000000")).
+				Foreground(lipgloss.Color("#09090B")).
 				Background(ColorAmber).
 				Padding(0, 1).
 				Bold(true)
@@ -80,43 +82,72 @@ var (
 	StyleLowBadge = lipgloss.NewStyle().
 			Foreground(ColorWhite).
 			Background(ColorDark).
-			Padding(0, 1)
+			Padding(0, 1).
+			Bold(true)
+
+	StylePinnedBadge = lipgloss.NewStyle().
+				Foreground(ColorAmber).
+				Background(ColorDark).
+				Padding(0, 1).
+				Bold(true)
 
 	StyleBox = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(ColorDark).
 			Padding(0, 1).
 			MarginTop(1)
+
+	// Inline text styles (TrueColor)
+	StyleWhiteBold   = lipgloss.NewStyle().Bold(true).Foreground(ColorWhite)
+	StyleWhite       = lipgloss.NewStyle().Foreground(ColorWhite)
+	StyleZinc        = lipgloss.NewStyle().Foreground(ColorZinc)
+	StyleSubtle      = lipgloss.NewStyle().Foreground(ColorSubtle)
+	StyleDarkDivider = lipgloss.NewStyle().Foreground(ColorDark)
+	StyleCyanBold    = lipgloss.NewStyle().Bold(true).Foreground(ColorCyan)
+	StyleEmeraldBold = lipgloss.NewStyle().Bold(true).Foreground(ColorEmerald)
+	StyleRoseBold    = lipgloss.NewStyle().Bold(true).Foreground(ColorRose)
+	StyleRoseText    = lipgloss.NewStyle().Foreground(ColorRose)
+	StyleOrangeBold  = lipgloss.NewStyle().Bold(true).Foreground(ColorOrange)
+	StyleAmberBold   = lipgloss.NewStyle().Bold(true).Foreground(ColorAmber)
 )
 
-// Legacy ANSI for backward compatibility
+// Legacy ANSI constants mapped to TrueColor RGB sequences so any direct string interpolation
+// matches the Static Site & Web UI palette identically.
 const (
 	Reset     = "\033[0m"
 	Bold      = "\033[1m"
 	Dim       = "\033[2m"
 	Underline = "\033[4m"
-	Cyan      = "\033[38;5;39m"
-	CyanDim   = "\033[38;5;31m"
-	Rose      = "\033[38;5;197m"
-	RoseDim   = "\033[38;5;88m"
-	Emerald   = "\033[38;5;78m"
-	Amber     = "\033[38;5;214m"
-	Zinc      = "\033[38;5;244m"
-	DarkZinc  = "\033[38;5;238m"
-	White     = "\033[1;37m"
+	Cyan      = "\033[38;2;0;240;255m"
+	CyanDim   = "\033[38;2;0;144;160m"
+	Rose      = "\033[38;2;255;46;147m"
+	RoseDim   = "\033[38;2;159;18;57m"
+	Orange    = "\033[38;2;249;115;22m"
+	Emerald   = "\033[38;2;0;255;157m"
+	Amber     = "\033[38;2;255;184;0m"
+	Zinc      = "\033[38;2;161;161;170m"
+	DarkZinc  = "\033[38;2;113;113;122m"
+	White     = "\033[1;38;2;250;250;250m"
 )
 
 // Banner renders the geometric stealth brand identity for Vanguard using Lip Gloss.
 func Banner(version, platform string) string {
-	delta := lipgloss.NewStyle().Foreground(ColorCyan).Render
+	cyan := lipgloss.NewStyle().Bold(true).Foreground(ColorCyan).Render
+	indigo := lipgloss.NewStyle().Bold(true).Foreground(ColorIndigo).Render
+	verBadge := lipgloss.NewStyle().
+		Foreground(ColorCyan).
+		Background(ColorDark).
+		Padding(0, 1).
+		Bold(true).
+		Render("v" + version)
 
 	var sb strings.Builder
 	sb.WriteString("\n")
-	sb.WriteString(delta("      ▲") + "\n")
-	sb.WriteString(delta("     /█\\     ") + StyleBrandName.Render("V A N G U A R D") + "\n")
-	sb.WriteString(delta("    /███\\    ") + StyleTagline.Render("Vulnerability Shield & Package Orchestrator") + "\n")
-	sb.WriteString(delta("    \\███/    ") + StyleMeta.Render("v"+version+" · "+platform) + "\n")
-	sb.WriteString(delta("     \\█/") + "\n\n")
+	sb.WriteString("  " + cyan("    ▲    ") + "\n")
+	sb.WriteString("  " + cyan("   /█\\   ") + "  " + StyleBrandName.Render("V A N G U A R D") + "  " + verBadge + "\n")
+	sb.WriteString("  " + cyan("  /███\\  ") + "  " + StyleTagline.Render("Vulnerability Shield & Package Orchestrator") + "\n")
+	sb.WriteString("  " + indigo("  \\███/  ") + "  " + StyleMeta.Render(platform+" · OSV.dev · Trivy · Native Audits") + "\n")
+	sb.WriteString("  " + indigo("   \\▼/   ") + "\n\n")
 	return sb.String()
 }
 
@@ -135,13 +166,23 @@ func SectionHeader(title string, count int, headerColor string) string {
 	}
 
 	titleText := lipgloss.NewStyle().Bold(true).Foreground(c).Render(fmt.Sprintf("%s (%d)", title, count))
-	divider := lipgloss.NewStyle().Foreground(ColorDark).Render(strings.Repeat("─", 68))
+	divider := lipgloss.NewStyle().Foreground(ColorSubtle).Render(strings.Repeat("─", 76))
 	return fmt.Sprintf("\n  %s\n  %s", titleText, divider)
 }
 
 // BadgeManager formats a manager badge, e.g. [brew]
 func BadgeManager(mgr string) string {
 	return StyleManagerBadge.Render(mgr)
+}
+
+// BadgeManagerPadded formats a manager badge padded to a uniform column width
+// so package names align vertically across rows.
+func BadgeManagerPadded(mgr string, width int) string {
+	if width < len(mgr) {
+		width = len(mgr)
+	}
+	padded := fmt.Sprintf("%-*s", width, mgr)
+	return StyleManagerBadge.Render(padded)
 }
 
 // BadgeSeverity renders an authoritative severity pill badge according to risk level.
@@ -182,6 +223,11 @@ func BadgeSafe() string {
 // BadgeMajor formats a major breaking update tag.
 func BadgeMajor() string {
 	return StyleMajorBadge.Render("▲ MAJOR")
+}
+
+// BadgePinned formats a pinned tag.
+func BadgePinned() string {
+	return StylePinnedBadge.Render("PINNED")
 }
 
 // Box formats a multi-line message in a clean Lip Gloss card.
@@ -236,7 +282,8 @@ func StartSpinner(msg string) func(finalMsg string) {
 		fmt.Printf("\r\033[K")
 		if finalMsg != "" {
 			emerald := lipgloss.NewStyle().Foreground(ColorEmerald).Bold(true).Render
-			fmt.Printf("  %s %s\n", emerald("✓"), finalMsg)
+			white := lipgloss.NewStyle().Foreground(ColorWhite).Render
+			fmt.Printf("  %s %s\n", emerald("✓"), white(finalMsg))
 		}
 	}
 }

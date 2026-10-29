@@ -61,6 +61,9 @@ export const HistoryModal: FC<HistoryModalProps> = ({ isOpen, onClose }) => {
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150 cursor-pointer"
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="history-modal-title"
         onClick={(e) => e.stopPropagation()}
         className="bg-zinc-950 border border-zinc-800 rounded-xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden cursor-default"
       >
@@ -68,10 +71,10 @@ export const HistoryModal: FC<HistoryModalProps> = ({ isOpen, onClose }) => {
         <div className="px-5 py-3.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
           <div className="flex items-center gap-2.5">
             <History className="w-4 h-4 text-zinc-300" />
-            <h2 className="text-sm font-semibold text-zinc-100 font-mono tracking-tight">
+            <h2 id="history-modal-title" className="text-sm font-semibold text-zinc-100 font-mono tracking-tight">
               Audit Upgrade History
             </h2>
-            <span className="text-[10px] font-mono text-zinc-400 bg-zinc-800/80 border border-zinc-700/50 px-2 py-0.5 rounded">
+            <span className="text-[11px] font-mono text-zinc-300 bg-zinc-800/80 border border-zinc-700/50 px-2 py-0.5 rounded">
               {entries.length} records
             </span>
           </div>
@@ -79,6 +82,7 @@ export const HistoryModal: FC<HistoryModalProps> = ({ isOpen, onClose }) => {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              aria-label="Refresh history"
               onClick={load}
               disabled={loading}
               title="Refresh history"
@@ -88,6 +92,7 @@ export const HistoryModal: FC<HistoryModalProps> = ({ isOpen, onClose }) => {
             </button>
             <button
               type="button"
+              aria-label="Close history modal"
               onClick={onClose}
               className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors cursor-pointer"
               title="Close (Esc)"
@@ -100,60 +105,71 @@ export const HistoryModal: FC<HistoryModalProps> = ({ isOpen, onClose }) => {
         {/* Filter bar */}
         <div className="p-3 border-b border-zinc-800/80 bg-zinc-900/30">
           <input
+            id="history-search"
+            name="history-search"
+            aria-label="Search upgrade history"
             type="text"
             placeholder="Search package, manager, or status..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-md px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 font-mono"
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-md px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-zinc-700 font-mono"
           />
         </div>
 
         {/* Body table */}
         <div className="flex-1 overflow-y-auto divide-y divide-zinc-800/50 font-mono text-xs">
           {loading && entries.length === 0 ? (
-            <div className="p-12 text-center text-zinc-500 text-xs">Loading audit records...</div>
+            <div className="p-12 text-center text-zinc-400 text-xs">Loading audit records...</div>
           ) : filtered.length === 0 ? (
-            <div className="p-12 text-center text-zinc-500 text-xs">
-              No upgrade history records found in ~/.local/state/vanguard/history.jsonl
+            <div className="p-12 text-center text-zinc-400 text-xs">
+              No upgrade history records match your filter.
             </div>
           ) : (
             filtered.map((item, idx) => {
               const isOk = item.status === "ok";
               const timeStr = new Date(item.timestamp).toLocaleString();
+              const cleanName = item.package_id.startsWith(`${item.manager}:`)
+                ? item.package_id.slice(item.manager.length + 1)
+                : item.package_id;
+
               return (
                 <div
                   key={idx}
-                  className="px-5 py-2.5 flex items-center justify-between gap-4 hover:bg-zinc-900/40 transition-colors"
+                  className="px-4 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 sm:gap-4 hover:bg-zinc-900/40 transition-colors"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     {isOk ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                     ) : (
                       <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
                     )}
 
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-zinc-200 truncate">
-                          {item.package_id}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-semibold text-zinc-100 truncate" title={cleanName}>
+                          {cleanName}
                         </span>
-                        <span className="text-[10px] text-zinc-400 bg-zinc-800 px-1.5 py-0.2 rounded uppercase">
+                        <span className="text-[11px] text-zinc-300 bg-zinc-800 px-1.5 py-0.5 rounded uppercase shrink-0">
                           {item.manager}
                         </span>
                       </div>
-                      <div className="text-[10px] text-zinc-500">{timeStr}</div>
+                      <div className="text-[11px] text-zinc-400">{timeStr}</div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3.5 shrink-0">
-                    <div className="text-right text-[11px] tabular-nums">
-                      <span className="text-zinc-400">{item.from_version}</span>
-                      <span className="text-zinc-600 mx-1.5 select-none">→</span>
-                      <span className="text-zinc-200 font-medium">{item.to_version}</span>
+                  <div className="flex items-center gap-3 shrink-0 pl-7 sm:pl-0">
+                    <div className="flex items-center gap-1.5 text-right text-xs tabular-nums">
+                      <span className="text-zinc-400 max-w-[14ch] truncate" title={item.from_version}>
+                        {item.from_version}
+                      </span>
+                      <span className="text-zinc-400 select-none">→</span>
+                      <span className="text-zinc-100 font-medium max-w-[14ch] truncate" title={item.to_version}>
+                        {item.to_version}
+                      </span>
                     </div>
 
                     <span
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded uppercase ${
                         isOk
                           ? "bg-emerald-950/80 text-emerald-300 border border-emerald-800"
                           : "bg-rose-950/80 text-rose-300 border border-rose-800"

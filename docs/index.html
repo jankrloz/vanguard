@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VANGUARD — Unified Package Security &amp; Fleet Orchestrator</title>
-  <meta name="description" content="Single-binary Go daemon, Charm CLI &amp; embedded React 19 dashboard unifying 35+ package managers with real-time OSV.dev CVE intelligence and privilege-safe escalation." />
+  <meta name="description" content="Single-binary Go daemon, Charm CLI &amp; embedded React 19 dashboard unifying 35+ package managers with real-time OSV.dev, Trivy, osv-scanner, and native CLI vulnerability intelligence." />
   <meta property="og:title" content="VANGUARD — Unified Package Security &amp; Fleet Orchestrator" />
-  <meta property="og:description" content="35+ Package Managers · Real-Time OSV.dev CVE Triage · Privilege-Safe Escalation · Single Go Binary." />
+  <meta property="og:description" content="35+ Package Managers · OSV.dev + Trivy + osv-scanner CVE Triage · Privilege-Safe Escalation · Single Go Binary." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://jankrloz.github.io/vanguard/" />
   <meta property="og:image" content="https://raw.githubusercontent.com/jankrloz/vanguard/main/assets/vanguard-social-preview.svg" />
@@ -14,7 +14,7 @@
   <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
       --bg: #09090B;
@@ -23,7 +23,7 @@
       --border: #27272A;
       --text: #FAFAFA;
       --muted: #A1A1AA;
-      --subtle: #71717A;
+      --subtle: #8E8E99;
       --cyan: #00F0FF;
       --indigo: #6366F1;
       --rose: #FF2E93;
@@ -32,20 +32,14 @@
       --emerald: #00FF9D;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, sans-serif; }
+    html { scroll-behavior: smooth; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', -apple-system, sans-serif; }
     body {
       min-height: 100vh;
       background-color: var(--bg);
-      background-image:
-        radial-gradient(ellipse 80% 50% at 50% -15%, rgba(0, 240, 255, 0.12), transparent),
-        radial-gradient(ellipse 50% 40% at 85% 20%, rgba(255, 46, 147, 0.06), transparent),
-        linear-gradient(to bottom, rgba(39, 39, 42, 0.18) 1px, transparent 1px),
-        linear-gradient(to right, rgba(39, 39, 42, 0.18) 1px, transparent 1px);
-      background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
       line-height: 1.6;
       overflow-x: hidden;
     }
-    code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+    code, pre, .mono { font-family: 'IBM Plex Mono', monospace; }
     a { color: inherit; text-decoration: none; }
 
     .container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
@@ -54,12 +48,12 @@
     header {
       position: sticky; top: 0; z-index: 50;
       backdrop-filter: blur(16px);
-      background: rgba(9, 9, 11, 0.82);
+      background: rgba(9, 9, 11, 0.85);
       border-bottom: 1px solid var(--border);
     }
     .nav {
       display: flex; align-items: center; justify-content: space-between;
-      height: 68px;
+      height: 68px; gap: 16px;
     }
     .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; letter-spacing: 0.14em; font-size: 15px; }
     .brand-badge {
@@ -75,32 +69,32 @@
       background: var(--surface-elevated); border: 1px solid var(--border);
       color: var(--text); font-weight: 600; font-size: 13px;
       transition: border-color 0.15s, transform 0.15s;
+      white-space: nowrap;
     }
     .btn-gh:hover { border-color: var(--cyan); transform: translateY(-1px); }
 
     /* Hero */
-    .hero { padding: 84px 0 56px; text-align: center; }
+    .hero { padding: 80px 0 56px; text-align: center; }
     .eyebrow {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 5px 14px; border-radius: 999px;
       background: rgba(0, 240, 255, 0.07);
       border: 1px solid rgba(0, 240, 255, 0.25);
       color: var(--cyan); font-size: 12px; font-weight: 600;
-      margin-bottom: 24px;
+      margin-bottom: 24px; max-width: 100%; flex-wrap: wrap; justify-content: center;
     }
-    .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
+    .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--emerald); flex-shrink: 0; }
     h1 {
-      font-size: clamp(36px, 5.5vw, 64px);
-      font-weight: 800; letter-spacing: -0.03em; line-height: 1.08;
+      font-size: clamp(34px, 5.5vw, 64px);
+      font-weight: 700; letter-spacing: -0.03em; line-height: 1.08;
       max-width: 900px; margin: 0 auto 20px;
     }
-    .gradient-text {
-      background: linear-gradient(135deg, #FFFFFF 0%, #00F0FF 55%, #6366F1 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    .accent-text {
+      color: var(--cyan);
     }
     .hero-sub {
       color: var(--muted); font-size: clamp(16px, 2vw, 19px);
-      max-width: 680px; margin: 0 auto 36px;
+      max-width: 720px; margin: 0 auto 36px;
     }
 
     /* Install Command Bar */
@@ -131,7 +125,7 @@
       overflow: hidden;
     }
     .window-bar {
-      display: flex; align-items: center; justify-content: space-between;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
       padding: 12px 18px; background: #0D0D11; border-bottom: 1px solid var(--border);
     }
     .dots { display: flex; gap: 7px; }
@@ -139,7 +133,7 @@
     .dots span:nth-child(1) { background: #FF5F56; }
     .dots span:nth-child(2) { background: #FFBD2E; }
     .dots span:nth-child(3) { background: #27C93F; }
-    .tabs { display: flex; gap: 6px; }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
     .tab-btn {
       background: transparent; color: var(--muted); border: 1px solid transparent;
       padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer;
@@ -153,14 +147,20 @@
 
     /* Terminal colors */
     .c-cyan { color: var(--cyan); font-weight: 700; }
+    .c-indigo { color: var(--indigo); font-weight: 700; }
     .c-rose { color: var(--rose); font-weight: 700; }
+    .c-rose-text { color: var(--rose); }
     .c-orange { color: var(--orange); font-weight: 700; }
     .c-amber { color: var(--amber); font-weight: 700; }
     .c-emerald { color: var(--emerald); font-weight: 700; }
+    .c-zinc { color: var(--muted); }
     .c-muted { color: var(--subtle); }
-    .badge-crit { background: var(--rose); color: #09090B; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 11px; }
-    .badge-high { background: var(--orange); color: #09090B; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 11px; }
-    .badge-med { background: var(--amber); color: #09090B; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 11px; }
+    .mgr-pill { background: #27272A; color: #00F0FF; padding: 1px 8px; font-weight: 700; display: inline-block; }
+    .badge-crit { background: var(--rose); color: #09090B; padding: 1px 6px; border-radius: 3px; font-weight: 700; font-size: 11px; }
+    .badge-high { background: var(--orange); color: #09090B; padding: 1px 6px; border-radius: 3px; font-weight: 700; font-size: 11px; }
+    .badge-med { background: var(--amber); color: #09090B; padding: 1px 6px; border-radius: 3px; font-weight: 700; font-size: 11px; }
+    .badge-safe-pill { background: var(--emerald); color: #09090B; padding: 1px 6px; border-radius: 3px; font-weight: 700; font-size: 11px; }
+    .badge-major-pill { background: var(--amber); color: #09090B; padding: 1px 6px; border-radius: 3px; font-weight: 700; font-size: 11px; }
     .badge-safe { color: var(--emerald); font-weight: 600; }
 
     /* Mock Web Table inside Tab 2 */
@@ -173,7 +173,7 @@
     .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
     .kpi-val { font-size: 26px; font-weight: 800; margin-top: 4px; }
     .mock-row {
-      display: flex; align-items: center; justify-content: space-between;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
       padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px;
       margin-bottom: 8px; background: #0E0E13;
     }
@@ -183,7 +183,7 @@
     .section-title { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px; }
     .section-sub { color: var(--muted); font-size: 15px; margin-bottom: 36px; max-width: 680px; }
 
-    .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
     .card {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 14px; padding: 24px;
@@ -199,8 +199,9 @@
     .card h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
     .card p { color: var(--muted); font-size: 14px; }
 
-    /* Severity Table */
-    table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+    /* Responsive Tables */
+    .table-wrap { width: 100%; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 580px; background: var(--surface); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
     th, td { padding: 14px 18px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
     th { background: #0D0D11; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
     tr:last-child td { border-bottom: none; }
@@ -210,8 +211,10 @@
       color: var(--subtle); font-size: 13px; text-align: center;
     }
     @media (max-width: 768px) {
+      .hero { padding: 48px 0 36px; }
       .web-mock-grid { grid-template-columns: repeat(2, 1fr); }
       .nav-links { display: none; }
+      .pane { padding: 16px; font-size: 12px; }
     }
   </style>
 </head>
@@ -236,7 +239,6 @@
       <nav class="nav-links">
         <a href="#features">Capabilities</a>
         <a href="#security">CVE Intelligence</a>
-        <a href="#privilege">Privilege Isolation</a>
         <a href="#cli">CLI Reference</a>
       </nav>
       <a href="https://github.com/jankrloz/vanguard" target="_blank" rel="noopener noreferrer" class="btn-gh">
@@ -250,13 +252,13 @@
     <section class="hero" style="border-top:none;">
       <div class="eyebrow mono">
         <span class="dot"></span>
-        <span>35+ PACKAGE MANAGERS · REAL-TIME OSV.DEV CVE TRIAGE · TOUCH ID GUARD</span>
+        <span>35+ PACKAGE MANAGERS · OSV.DEV + TRIVY + NATIVE AUDITS · TOUCH ID GUARD</span>
       </div>
       <h1>
-        Zero-blindspot security for <span class="gradient-text">every package on your machine.</span>
+        Zero-blindspot security for <span class="accent-text">every package on your machine.</span>
       </h1>
       <p class="hero-sub">
-        Vanguard unifies <strong>Meta Package Manager (mpm)</strong>, <strong>Topgrade</strong>, and real-time <strong>OSV.dev / GHSA / NVD</strong> vulnerability hydration into a single Go binary—with a Charm-powered CLI and an embedded React 19 control center.
+        Vanguard unifies <strong>Meta Package Manager (mpm)</strong>, <strong>Topgrade</strong>, and multi-engine vulnerability hydration (<strong>OSV.dev, GHSA, osv-scanner, Trivy SBOM, npm audit, pip-audit</strong>) into a single Go binary—with a Charm-powered CLI and an embedded React 19 control center.
       </p>
 
       <div class="install-box">
@@ -277,76 +279,95 @@
         </div>
 
         <div id="pane-cli" class="pane mono">
-<pre style="margin:0;"><span class="c-cyan">      ▲
-     /█\     </span><span style="color:#F4F4F5;font-weight:700;">V A N G U A R D</span>
-<span class="c-cyan">    /███\    </span><span class="c-muted">Vulnerability Shield &amp; Package Orchestrator</span>
-<span class="c-cyan">    \███/    </span><span class="c-muted">v0.2.0 · darwin/arm64</span>
-<span class="c-cyan">     \█/</span>
-  <span class="c-emerald">✓</span> Discovered 58 outdated packages across active registries
+<pre style="margin:0;"><span class="c-cyan">      ▲    </span>
+<span class="c-cyan">     /█\   </span>  <span style="color:#FAFAFA;font-weight:700;">V A N G U A R D</span>  <span class="mgr-pill">v0.2.0</span>
+<span class="c-cyan">    /███\  </span>  <span class="c-zinc">Vulnerability Shield &amp; Package Orchestrator</span>
+<span class="c-indigo">    \███/  </span>  <span class="c-muted">darwin/arm64 · OSV.dev · Trivy · Native Audits</span>
+<span class="c-indigo">     \▼/   </span>
+
+  <span class="c-emerald">✓</span> <span style="color:#FAFAFA;">Discovered 21 outdated packages across active registries</span>
 
   <span class="c-rose">CRITICAL &amp; SECURITY ADVISORIES (3)</span>
-  <span class="c-muted">────────────────────────────────────────────────────────────────────</span>
-  <span style="background:#27272A;color:#00F0FF;padding:1px 6px;font-weight:700;">gem</span> <span style="color:#F4F4F5;font-weight:700;">rexml               </span> <span class="c-muted">3.2.5 →</span> <span style="color:#F4F4F5;">3.4.4</span> <span class="c-rose">[CVE-2024-49761 (GHSA-2rxp-v6pw-ch6m)]</span> <span class="badge-crit">🔥 CRITICAL</span>
-    <span class="c-rose">🚨 CVE-2024-49761 (GHSA-2rxp-v6pw-ch6m): REXML ReDoS vulnerability</span>
-    <span class="c-muted">└─ An XML toolkit for Ruby</span>
-  <span style="background:#27272A;color:#00F0FF;padding:1px 6px;font-weight:700;">gem</span> <span style="color:#F4F4F5;font-weight:700;">net-imap            </span> <span class="c-muted">0.2.3 →</span> <span style="color:#F4F4F5;">0.6.3</span> <span class="c-rose">[CVE-2025-25186 (GHSA-7fc5-f82f-cx69)]</span> <span class="badge-high">⚠ HIGH</span>
-    <span class="c-rose">🚨 CVE-2025-25186 (GHSA-7fc5-f82f-cx69): Possible DoS by memory exhaustion in net-imap</span>
-    <span class="c-muted">└─ Ruby client api for Internet Message Access Protocol</span>
-  <span style="background:#27272A;color:#00F0FF;padding:1px 6px;font-weight:700;">gem</span> <span style="color:#F4F4F5;font-weight:700;">rdoc                </span> <span class="c-muted">6.4.0 →</span> <span style="color:#F4F4F5;">7.2.0</span> <span class="c-rose">[CVE-2024-27281 (GHSA-5obj-2p47-6v7q)]</span> <span class="badge-med">● MEDIUM</span>
-    <span class="c-rose">🚨 CVE-2024-27281 (GHSA-5obj-2p47-6v7q): RCE vulnerability with .rdoc_options in RDoc</span>
+  <span class="c-muted">────────────────────────────────────────────────────────────────────────────</span>
+  <span class="mgr-pill">gem   </span>  <span style="color:#FAFAFA;font-weight:700;">rexml                   </span>  <span class="c-muted">3.2.5 →</span> <span style="color:#FAFAFA;font-weight:700;">3.4.4       </span>  <span class="c-rose">[CVE-2024-49761 (GHSA-2rxp-v6pw-ch6m)]</span> <span class="badge-crit">🔥 CRITICAL</span>
+    <span class="c-rose">🚨 CVE-2024-49761 (GHSA-2rxp-v6pw-ch6m)</span> <span class="c-muted">[GitHub Advisory (GHSA) · osv-scanner · Trivy]</span>: <span class="c-rose-text">REXML ReDoS vulnerability</span>
+    <span class="c-muted">└─</span> <span class="c-zinc">An XML toolkit for Ruby</span>
+  <span class="mgr-pill">gem   </span>  <span style="color:#FAFAFA;font-weight:700;">net-imap                </span>  <span class="c-muted">0.2.3 →</span> <span style="color:#FAFAFA;font-weight:700;">0.6.3       </span>  <span class="c-rose">[CVE-2025-25186 (GHSA-7fc5-f82f-cx69)]</span> <span class="badge-high">⚠ HIGH</span>
+    <span class="c-rose">🚨 CVE-2025-25186 (GHSA-7fc5-f82f-cx69)</span> <span class="c-muted">[GitHub Advisory (GHSA) · osv-scanner · Trivy]</span>: <span class="c-rose-text">Possible DoS by memory exhaustion in net-imap</span>
+    <span class="c-muted">└─</span> <span class="c-zinc">Ruby client api for Internet Message Access Protocol</span>
+  <span class="mgr-pill">gem   </span>  <span style="color:#FAFAFA;font-weight:700;">rdoc                    </span>  <span class="c-muted">6.4.0 →</span> <span style="color:#FAFAFA;font-weight:700;">7.2.0       </span>  <span class="c-rose">[CVE-2024-27281 (GHSA-5obj-2p47-6v7q)]</span> <span class="badge-med">● MEDIUM</span>
+    <span class="c-rose">🚨 CVE-2024-27281 (GHSA-5obj-2p47-6v7q)</span> <span class="c-muted">[GitHub Advisory (GHSA) · osv-scanner]</span>: <span class="c-rose-text">RCE vulnerability with .rdoc_options in RDoc</span>
+    <span class="c-muted">└─</span> <span class="c-zinc">RDoc produces HTML and command-line documentation for Ruby projects</span>
 
-  <span class="c-emerald">SAFE MINOR &amp; PATCH UPDATES (22)</span>
-  <span class="c-muted">────────────────────────────────────────────────────────────────────</span>
-  <span style="background:#27272A;color:#00F0FF;padding:1px 6px;font-weight:700;">brew</span> <span style="color:#F4F4F5;font-weight:700;">ca-certificates     </span> <span class="c-muted">2025-12-02 →</span> <span style="color:#F4F4F5;">2026-03-19</span> <span style="background:#00FF9D;color:#000;padding:1px 6px;font-weight:700;">✓ SAFE</span>
-    <span class="c-muted">└─ Mozilla CA certificate store</span>
-  <span style="background:#27272A;color:#00F0FF;padding:1px 6px;font-weight:700;">brew</span> <span style="color:#F4F4F5;font-weight:700;">uv                  </span> <span class="c-muted">0.9.18 →</span> <span style="color:#F4F4F5;">0.11.6</span> <span style="background:#00FF9D;color:#000;padding:1px 6px;font-weight:700;">✓ SAFE</span>
-    <span class="c-muted">└─ Extremely fast Python package installer and resolver</span>
+  <span class="c-emerald">SAFE MINOR &amp; PATCH UPDATES (14)</span>
+  <span class="c-muted">────────────────────────────────────────────────────────────────────────────</span>
+  <span class="mgr-pill">brew  </span>  <span style="color:#FAFAFA;font-weight:700;">anomalyco/tap/opencode-v2</span>  <span class="c-muted">2.2.0 →</span> <span style="color:#FAFAFA;font-weight:700;">2.2.1       </span>  <span class="badge-safe-pill">✓ SAFE</span>
+    <span class="c-muted">└─</span> <span class="c-zinc">OpenCode V2 - the AI coding agent for the terminal</span>
+  <span class="mgr-pill">gcloud</span>  <span style="color:#FAFAFA;font-weight:700;">bq                      </span>  <span class="c-muted">2.1.31 →</span> <span style="color:#FAFAFA;font-weight:700;">2.1.41     </span>  <span class="badge-safe-pill">✓ SAFE</span>
+    <span class="c-muted">└─</span> <span class="c-zinc">BigQuery Command Line Tool for interactive SQL and dataset management</span>
+  <span class="mgr-pill">cask  </span>  <span style="color:#FAFAFA;font-weight:700;">codex                   </span>  <span class="c-muted">0.164.0 →</span> <span style="color:#FAFAFA;font-weight:700;">0.165.0   </span>  <span class="badge-safe-pill">✓ SAFE</span>
+    <span class="c-muted">└─</span> <span class="c-zinc">OpenAI's coding agent that runs in your terminal</span>
+  <span class="mgr-pill">brew  </span>  <span style="color:#FAFAFA;font-weight:700;">ty                      </span>  <span class="c-muted">0.0.92 →</span> <span style="color:#FAFAFA;font-weight:700;">0.0.93     </span>  <span class="badge-safe-pill">✓ SAFE</span>
+    <span class="c-muted">└─</span> <span class="c-zinc">Extremely fast Python type checker, written in Rust</span>
 
-  <span class="c-muted">────────────────────────────────────────────────────────────────────</span>
-  Total: <span style="color:#F4F4F5;">58</span> │ Critical: <span class="c-rose">1</span> │ High: <span class="c-amber">1</span> │ Med: <span class="c-muted">1</span> │ Safe: <span class="c-emerald">22</span> │ Major: <span class="c-amber">35</span> │ Pinned: 0</pre>
+  <span class="c-amber">MAJOR BREAKING UPDATES (4)</span>
+  <span class="c-muted">────────────────────────────────────────────────────────────────────────────</span>
+  <span class="mgr-pill">pnpm  </span>  <span style="color:#FAFAFA;font-weight:700;">vercel                  </span>  <span class="c-muted">59.26.0 →</span> <span style="color:#FAFAFA;font-weight:700;">65.5.0    </span>  <span class="badge-major-pill">▲ MAJOR</span>
+    <span class="c-muted">└─</span> <span class="c-zinc">The command-line interface for Vercel</span>
+  <span class="mgr-pill">pip   </span>  <span style="color:#FAFAFA;font-weight:700;">websockets              </span>  <span class="c-muted">16.1 →</span> <span style="color:#FAFAFA;font-weight:700;">17.3         </span>  <span class="badge-major-pill">▲ MAJOR</span>
+    <span class="c-muted">└─</span> <span class="c-zinc">An implementation of the WebSocket Protocol (RFC 6455 &amp; 7692)</span>
+
+  <span class="c-muted">────────────────────────────────────────────────────────────────────────────</span>
+  Total: <span style="color:#FAFAFA;font-weight:700;">21</span> <span class="c-muted">│</span> Critical: <span class="c-rose">1</span> <span class="c-muted">│</span> High: <span class="c-orange">1</span> <span class="c-muted">│</span> Med: <span class="c-amber">1</span> <span class="c-muted">│</span> Safe: <span class="c-emerald">14</span> <span class="c-muted">│</span> Major: <span class="c-amber">4</span> <span class="c-muted">│</span> Pinned: <span class="c-zinc">0</span></pre>
         </div>
 
         <div id="pane-web" class="pane hidden">
           <div class="web-mock-grid">
-            <div class="kpi-card">
-              <div class="kpi-label">Outdated Packages</div>
-              <div class="kpi-val">58</div>
-            </div>
             <div class="kpi-card" style="border-color:rgba(255,46,147,0.4);">
-              <div class="kpi-label" style="color:var(--rose);">Security Advisories</div>
-              <div class="kpi-val" style="color:var(--rose);">3 <span style="font-size:12px;font-weight:600;">(1 CRIT · 1 HIGH · 1 MED)</span></div>
+              <div class="kpi-label" style="color:var(--rose);">Vulnerabilities</div>
+              <div class="kpi-val" style="color:var(--rose);">3 <span style="font-size:12px;font-weight:600;">(1 Crit · 1 High · 1 Med)</span></div>
             </div>
             <div class="kpi-card">
               <div class="kpi-label" style="color:var(--emerald);">Safe Updates</div>
-              <div class="kpi-val" style="color:var(--emerald);">22</div>
+              <div class="kpi-val" style="color:var(--emerald);">14</div>
             </div>
             <div class="kpi-card">
               <div class="kpi-label" style="color:var(--amber);">Major Breaking</div>
-              <div class="kpi-val" style="color:var(--amber);">35</div>
+              <div class="kpi-val" style="color:var(--amber);">4</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">All Updates</div>
+              <div class="kpi-val">21</div>
             </div>
           </div>
           <div class="mock-row">
             <div>
-              <div style="display:flex;align-items:center;gap:8px;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                 <span class="mono" style="font-weight:700;">rexml</span>
                 <span class="mono c-muted" style="font-size:11px;">[gem]</span>
-                <span class="badge-crit mono">CRITICAL · 5 CVEs</span>
+                <span class="badge-crit mono">CRITICAL (1)</span>
               </div>
-              <div style="font-size:12px;color:var(--rose);margin-top:4px;">
-                <span class="mono">CVE-2024-49761:</span> REXML ReDoS vulnerability when parsing XML with many digits between &amp;# and x... (fixed &gt;= 3.3.9)
+              <div style="font-size:12px;color:var(--muted);margin-top:3px;">
+                An XML toolkit for Ruby
+              </div>
+              <div style="font-size:12px;color:var(--rose);margin-top:2px;">
+                <span class="mono" style="font-weight:700;">CVE-2024-49761:</span> REXML ReDoS vulnerability when parsing XML with many digits between &amp;# and x... (fixed &gt;= 3.3.9)
               </div>
             </div>
             <div class="mono" style="font-size:12px;"><span class="c-muted">3.2.5 →</span> <span class="c-emerald">3.4.4</span></div>
           </div>
           <div class="mock-row">
             <div>
-              <div style="display:flex;align-items:center;gap:8px;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                 <span class="mono" style="font-weight:700;">net-imap</span>
                 <span class="mono c-muted" style="font-size:11px;">[gem]</span>
-                <span class="badge-high mono">HIGH · 2 CVEs</span>
+                <span class="badge-high mono">HIGH (1)</span>
               </div>
-              <div style="font-size:12px;color:var(--orange);margin-top:4px;">
-                <span class="mono">CVE-2025-25186:</span> Net::IMAP memory exhaustion denial of service via malicious server responses (fixed &gt;= 0.3.8)
+              <div style="font-size:12px;color:var(--muted);margin-top:3px;">
+                Ruby client api for Internet Message Access Protocol
+              </div>
+              <div style="font-size:12px;color:var(--orange);margin-top:2px;">
+                <span class="mono" style="font-weight:700;">CVE-2025-25186:</span> Net::IMAP memory exhaustion denial of service via malicious server responses (fixed &gt;= 0.3.8)
               </div>
             </div>
             <div class="mono" style="font-size:12px;"><span class="c-muted">0.2.3 →</span> <span class="c-emerald">0.6.3</span></div>
@@ -356,28 +377,28 @@
     </section>
 
     <section id="features">
-      <div class="section-title">Engineered for High-Signal Fleet Hygiene</div>
+      <h2 class="section-title">Engineered for High-Signal Fleet Hygiene</h2>
       <p class="section-sub">No bloated Electron wrappers, no cloud accounts, and no root-polluted user directories.</p>
       <div class="grid-3">
         <div class="card">
           <div class="card-icon mono">01</div>
           <h3>35+ Package Managers via MPM</h3>
-          <p>Orchestrates Homebrew, Cask, npm, pnpm, bun, uv, pipx, Cargo, Go, RubyGems, Composer, MAS, and APT/APK—automatically filtering out macOS Perl CPAN dual-lived noise.</p>
+          <p>Orchestrates Homebrew, Cask, npm, pnpm, bun, uv, uvx, pipx, Cargo, Go, RubyGems, gcloud, Composer, MAS, and APT/APK—automatically filtering out macOS system CPAN and SIP Ruby noise.</p>
         </div>
         <div class="card">
           <div class="card-icon mono">02</div>
-          <h3>Real-Time OSV.dev Hydration</h3>
-          <p>Concurrently queries OSV.dev batch endpoints and hydrates full vulnerability advisories (CVE IDs, GHSA, RustSec, PySEC, human-readable summaries, and fixed-in versions).</p>
+          <h3>Multi-Engine CVE &amp; SBOM Triage</h3>
+          <p>Synthesizes real-time OSV.dev batch queries, CycloneDX 1.5 SBOM scans via <code>osv-scanner</code> and <code>trivy</code>, and native CLI audits (<code>npm audit</code>, <code>pip-audit</code>) with canonical CVE/GHSA deduplication.</p>
         </div>
         <div class="card">
           <div class="card-icon mono">03</div>
           <h3>Namespace-Aware Privilege Guard</h3>
-          <p>Never runs user-scoped managers (brew, npm, cargo, pip) as root. Escalates only for system paths (e.g. <code>/Library/Ruby/Gems</code>) via Touch ID or native macOS prompts.</p>
+          <p>Never runs user-scoped managers (brew, npm, cargo, pip, uv) as root. Escalates only for system-owned paths via Touch ID or native macOS authentication prompts.</p>
         </div>
         <div class="card">
           <div class="card-icon mono">04</div>
           <h3>In-Place Queue Review &amp; Lock</h3>
-          <p>Filter by Critical, High, Safe, Major, or Queued in a single unified table. Execution locks selection controls and streams real-time SSE stdout/stderr logs.</p>
+          <p>Filter by Vulnerabilities, Safe, Major, Pinned, or Queued in a single unified table. Execution locks selection controls, verifies real exit markers, and streams live SSE stdout/stderr logs.</p>
         </div>
         <div class="card">
           <div class="card-icon mono">05</div>
@@ -393,89 +414,93 @@
     </section>
 
     <section id="security">
-      <div class="section-title">Multi-Tier Vulnerability Triage</div>
-      <p class="section-sub">Not all advisories are equal. Vanguard classifies and ranks every outdated package by real CVSS/GHSA severity.</p>
-      <table>
-        <thead>
-          <tr>
-            <th>Severity Tier</th>
-            <th>CVSS / Vector Criteria</th>
-            <th>Intelligence Sources</th>
-            <th>Default Behavior</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><span class="badge-crit mono">CRITICAL</span></td>
-            <td class="mono">CVSS &ge; 9.0 · Network RCE (AV:N/C:H/I:H)</td>
-            <td>NVD CVE, GHSA, RustSec, PySEC, Go Vuln DB</td>
-            <td>Ranked #1 · Auto-queued · Blocks <code>vg check</code> (exit 1)</td>
-          </tr>
-          <tr>
-            <td><span class="badge-high mono">HIGH</span></td>
-            <td class="mono">CVSS 7.0 – 8.9 · Remote DoS / Memory Exhaustion</td>
-            <td>NVD CVE, GHSA, OSV Ecosystem Feeds</td>
-            <td>Ranked #2 · Auto-queued · Blocks <code>vg check</code> (exit 1)</td>
-          </tr>
-          <tr>
-            <td><span class="badge-med mono">MEDIUM</span></td>
-            <td class="mono">CVSS 4.0 – 6.9 · Local / Conditional Exploitation</td>
-            <td>GHSA Moderate, RubySec, npm Audit via OSV</td>
-            <td>Ranked #3 · Highlighted with inline advisory summary</td>
-          </tr>
-          <tr>
-            <td><span class="badge-safe mono">SAFE (MINOR/PATCH)</span></td>
-            <td class="mono">SemVer non-breaking update (&lt; next major)</td>
-            <td>Registry SemVer Delta</td>
-            <td>Ranked #4 · Pre-selected for one-click batch upgrade</td>
-          </tr>
-        </tbody>
-      </table>
+      <h2 class="section-title">Multi-Tier Vulnerability Triage</h2>
+      <p class="section-sub">Not all advisories are equal. Vanguard classifies and ranks every outdated package by real CVSS/GHSA severity across 4 scanner engines.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Severity Tier</th>
+              <th>CVSS / Vector Criteria</th>
+              <th>Intelligence Sources</th>
+              <th>Default Behavior</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="badge-crit mono">CRITICAL</span></td>
+              <td class="mono">CVSS &ge; 9.0 · Network RCE (AV:N/C:H/I:H)</td>
+              <td>OSV.dev, GHSA, Trivy SBOM, osv-scanner, npm/pip-audit</td>
+              <td>Ranked #1 · Auto-queued · Blocks <code>vg check</code> (exit 1)</td>
+            </tr>
+            <tr>
+              <td><span class="badge-high mono">HIGH</span></td>
+              <td class="mono">CVSS 7.0 – 8.9 · Remote DoS / Memory Exhaustion</td>
+              <td>OSV.dev, GHSA, Trivy SBOM, osv-scanner, npm/pip-audit</td>
+              <td>Ranked #2 · Auto-queued · Blocks <code>vg check</code> (exit 1)</td>
+            </tr>
+            <tr>
+              <td><span class="badge-med mono">MEDIUM</span></td>
+              <td class="mono">CVSS 4.0 – 6.9 · Local / Conditional Exploitation</td>
+              <td>GHSA Moderate, RubySec, PySEC, RustSec, npm/pip-audit</td>
+              <td>Ranked #3 · Highlighted with inline advisory &amp; package description</td>
+            </tr>
+            <tr>
+              <td><span class="badge-safe mono">SAFE (MINOR/PATCH)</span></td>
+              <td class="mono">SemVer non-breaking update (&lt; next major)</td>
+              <td>Registry SemVer Delta</td>
+              <td>Ranked #4 · Pre-selected for one-click batch upgrade</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section id="cli">
-      <div class="section-title">CLI &amp; Headless Automation</div>
-      <p class="section-sub">Styled with the Charm stack (Lipgloss + Bubbles) for interactive terminals and clean CI/cron execution.</p>
-      <table>
-        <thead>
-          <tr>
-            <th>Command</th>
-            <th>Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="mono c-cyan">vg</td>
-            <td>Launch local daemon on <code>127.0.0.1:9099</code> and open the embedded Web Control Center</td>
-          </tr>
-          <tr>
-            <td class="mono c-cyan">vg -no-web</td>
-            <td>Run daemon in headless background mode without opening a browser window</td>
-          </tr>
-          <tr>
-            <td class="mono c-cyan">vg check</td>
-            <td>Scan all managers, hydrate OSV advisories, print severity table, exit <code>1</code> on Critical/High CVEs</td>
-          </tr>
-          <tr>
-            <td class="mono c-cyan">vg apply [--cve-only | --all]</td>
-            <td>Apply safe or security-only updates directly in the terminal with live streaming progress</td>
-          </tr>
-          <tr>
-            <td class="mono c-cyan">vg sweep</td>
-            <td>Trigger deep system-wide Topgrade sweep (git repos, language toolchains, firmware)</td>
-          </tr>
-          <tr>
-            <td class="mono c-cyan">vg history</td>
-            <td>Inspect persistent JSONL upgrade audit trail (<code>~/.local/state/vanguard/history.jsonl</code>)</td>
-          </tr>
-        </tbody>
-      </table>
+      <h2 class="section-title">CLI &amp; Headless Automation</h2>
+      <p class="section-sub">Styled with the Charm stack (Lipgloss) for interactive TrueColor terminals and clean CI/cron execution.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono c-cyan">vg</td>
+              <td>Launch local daemon on <code>127.0.0.1:9099</code> and open the embedded Web Control Center</td>
+            </tr>
+            <tr>
+              <td class="mono c-cyan">vg -no-web</td>
+              <td>Run daemon in headless background mode without opening a browser window</td>
+            </tr>
+            <tr>
+              <td class="mono c-cyan">vg check</td>
+              <td>Scan all managers, run OSV/Trivy/native audits, print aligned severity table, exit <code>1</code> on CVEs</td>
+            </tr>
+            <tr>
+              <td class="mono c-cyan">vg apply [--security-only | --all | -y]</td>
+              <td>Apply safe or security-only updates directly in the terminal with live streaming verification</td>
+            </tr>
+            <tr>
+              <td class="mono c-cyan">vg sweep</td>
+              <td>Trigger deep system-wide Topgrade sweep (git repos, language toolchains, firmware)</td>
+            </tr>
+            <tr>
+              <td class="mono c-cyan">vg history</td>
+              <td>Inspect persistent JSONL upgrade audit trail (<code>~/.local/state/vanguard/history.jsonl</code>)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
   </main>
 
   <footer>
     <div class="container">
-      Built with Go 1.26, Charm Lipgloss/Bubbles, React 19 &amp; Vite+ · <a href="https://github.com/jankrloz/vanguard" style="color:var(--cyan);">GitHub Repository</a>
+      Built with Go 1.26, Charm Lipgloss, OSV.dev, Trivy, React 19 &amp; Vite+ · <a href="https://github.com/jankrloz/vanguard" style="color:var(--cyan);">GitHub Repository</a>
     </div>
   </footer>
 

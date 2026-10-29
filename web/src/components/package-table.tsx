@@ -18,12 +18,14 @@ import {
   ArrowUpCircle,
 } from "lucide-react";
 import type { Package, Vulnerability, FilterType } from "../lib/types";
+import type { OperationType } from "../App";
 
 interface PackageTableProps {
   packages: Package[];
   activeFilter: FilterType;
   isScanning: boolean;
   isUpgrading: boolean;
+  activeOperation?: OperationType;
   activeManager?: string | null;
   completedManagers?: Record<string, "ok" | "failed">;
   onFilterChange: (filter: FilterType) => void;
@@ -47,7 +49,7 @@ const ScanningSkeleton: FC = () => (
       </div>
       <h3 className="text-sm font-semibold text-zinc-200 font-mono">Scanning System Package Managers</h3>
       <p className="text-xs text-zinc-400 mt-1.5 max-w-md mx-auto">
-        Querying registries via MPM, computing SemVer diffs, and checking OSV.dev vulnerability intelligence...
+        Querying registries via MPM, computing SemVer diffs, and checking OSV.dev, Trivy &amp; native advisory intelligence...
       </p>
     </div>
 
@@ -80,12 +82,14 @@ export const PackageTable: FC<PackageTableProps> = ({
   activeFilter,
   isScanning,
   isUpgrading,
+  activeOperation = "upgrade",
   activeManager,
   completedManagers = {},
   onFilterChange,
   onTogglePackage,
   onTogglePin,
   onSelectSafe,
+  onSelectSecurity,
   onSelectAll,
   onDeselectAll,
   onSelectOnlyFiltered,
@@ -126,7 +130,10 @@ export const PackageTable: FC<PackageTableProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const targetTag = (e.target as HTMLElement)?.tagName;
-      const isEditing = targetTag === "INPUT" || targetTag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
+      const isEditing =
+        targetTag === "INPUT" ||
+        targetTag === "TEXTAREA" ||
+        (e.target as HTMLElement)?.isContentEditable;
       if (e.key === "/" && !isEditing && document.activeElement !== searchInputRef.current) {
         e.preventDefault();
         searchInputRef.current?.focus();
@@ -157,18 +164,6 @@ export const PackageTable: FC<PackageTableProps> = ({
     return packages.filter((p) => p.has_vulnerability).length;
   }, [packages]);
 
-  const safePackagesCount = useMemo(() => {
-    return packages.filter((p) => p.safe).length;
-  }, [packages]);
-
-  const majorPackagesCount = useMemo(() => {
-    return packages.filter((p) => p.change_type === "major").length;
-  }, [packages]);
-
-  const pinnedPackagesCount = useMemo(() => {
-    return packages.filter((p) => p.pinned).length;
-  }, [packages]);
-
   const queuedPackagesCount = useMemo(() => {
     return packages.filter((p) => p.selected && !p.pinned).length;
   }, [packages]);
@@ -183,7 +178,6 @@ export const PackageTable: FC<PackageTableProps> = ({
 
   const toggleManager = (m: string) => {
     if (!isManagerFiltered) {
-      // All managers were selected; deselect this one
       setSelectedManagers(managers.filter((x) => x !== m));
     } else if (selectedManagers.includes(m)) {
       const next = selectedManagers.filter((x) => x !== m);
@@ -212,10 +206,11 @@ export const PackageTable: FC<PackageTableProps> = ({
         const q = search.toLowerCase();
         const matchesName = name.toLowerCase().includes(q);
         const matchesMgr = mgr.toLowerCase().includes(q);
+        const matchesDesc = (p.description || "").toLowerCase().includes(q);
         const matchesVuln = (p.vulnerabilities || []).some(
           (v) => v.id.toLowerCase().includes(q) || v.summary.toLowerCase().includes(q)
         );
-        if (!matchesName && !matchesMgr && !matchesVuln) {
+        if (!matchesName && !matchesMgr && !matchesDesc && !matchesVuln) {
           return false;
         }
       }
@@ -259,25 +254,36 @@ export const PackageTable: FC<PackageTableProps> = ({
     setExpandedVulns((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // If initial scanning and no packages loaded yet, render skeleton
+  const operationTitle =
+    activeOperation === "clean"
+      ? "Cleaning Package Caches & Old Versions"
+      : activeOperation === "topgrade"
+      ? "Running Deep System Maintenance Sweep (Topgrade)"
+      : "Executing Package Upgrades";
+
+  const operationSubtitle =
+    activeOperation === "clean"
+      ? "Purging orphaned downloads and cache directories across package managers..."
+      : activeOperation === "topgrade"
+      ? "Updating Git repositories, toolchains, shell frameworks, and system caches..."
+      : activeManager
+      ? `Active manager: [${activeManager}] — logs streaming in drawer`
+      : "Dispatched upgrade queue to system package managers...";
+
   if (isScanning && packages.length === 0) {
     return <ScanningSkeleton />;
   }
 
   return (
     <div className="space-y-3">
-      {/* Live Upgrade Progress Notification */}
+      {/* Live Execution Progress Notification */}
       {isUpgrading && (
         <div className="bg-blue-950/70 border border-blue-800/90 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs font-mono shadow-lg animate-in fade-in">
           <div className="flex items-center gap-2.5 text-blue-200">
             <Loader2 className="w-4 h-4 animate-spin text-blue-400 shrink-0" />
-            <span>
-              {activeManager
-                ? `Executing upgrades for manager: [${activeManager}]...`
-                : "Upgrade queue dispatched, executing commands..."}
-            </span>
+            <span>{operationSubtitle}</span>
           </div>
-          <span className="text-[11px] text-zinc-400 bg-zinc-900/80 px-2 py-0.5 rounded border border-zinc-800 shrink-0">
+          <span className="text-[11px] text-zinc-300 bg-zinc-900/80 px-2 py-0.5 rounded border border-zinc-800 shrink-0">
             Controls locked during execution
           </span>
         </div>
@@ -285,125 +291,42 @@ export const PackageTable: FC<PackageTableProps> = ({
 
       {/* Background rescan subtle banner */}
       {isScanning && packages.length > 0 && (
-        <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 bg-zinc-900/60 border border-zinc-800 px-3 py-1.5 rounded-lg animate-pulse">
+        <div className="flex items-center gap-2 text-xs font-mono text-zinc-300 bg-zinc-900/60 border border-zinc-800 px-3 py-1.5 rounded-lg">
           <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />
           <span>Rescanning package registries for latest version diffs...</span>
         </div>
       )}
 
-      {/* Unified Controls & Scope Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-zinc-900/60 border border-zinc-800/80 p-2.5 rounded-lg">
-        {/* Search */}
-        <div className="relative flex-1 max-w-xs">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            disabled={isUpgrading}
-            placeholder="Search package or CVE... (/)"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-zinc-950/80 border border-zinc-800/90 rounded-md pl-9 pr-8 py-1.5 text-xs font-mono text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600/30 disabled:opacity-50"
-          />
-          {search && (
-            <button
-              type="button"
+      {/* Unified Controls & Scope Bar (Search + Managers + Queue Toggle + Bulk Selection) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-zinc-900/60 border border-zinc-800/80 p-2.5 rounded-lg">
+        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px] sm:max-w-xs">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              id="package-search"
+              name="package-search"
+              aria-label="Search packages, descriptions, or CVEs"
+              type="text"
               disabled={isUpgrading}
-              onClick={() => setSearch("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 p-0.5"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 text-xs flex-wrap">
-          {securityPackagesCount > 0 && (
-            <button
-              type="button"
-              disabled={isUpgrading}
-              onClick={() => onFilterChange("security")}
-              className={`px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 text-xs font-mono disabled:opacity-50 ${
-                activeFilter === "security"
-                  ? "bg-rose-950 text-rose-300 border border-rose-600 font-semibold"
-                  : "text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 border border-rose-900/40 cursor-pointer"
-              }`}
-            >
-              <Flame className="w-3 h-3 text-rose-400" />
-              Critical / CVEs ({securityPackagesCount})
-            </button>
-          )}
-
-          <button
-            type="button"
-            disabled={isUpgrading}
-            onClick={() => onFilterChange("safe")}
-            className={`px-2.5 py-1 rounded-md transition-colors text-xs font-mono disabled:opacity-50 ${
-              activeFilter === "safe"
-                ? "bg-emerald-950 text-emerald-300 border border-emerald-600 font-semibold"
-                : "text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800/50 border border-transparent cursor-pointer"
-            }`}
-          >
-            Safe ({safePackagesCount})
-          </button>
-
-          <button
-            type="button"
-            disabled={isUpgrading}
-            onClick={() => onFilterChange("major")}
-            className={`px-2.5 py-1 rounded-md transition-colors text-xs font-mono disabled:opacity-50 ${
-              activeFilter === "major"
-                ? "bg-amber-950 text-amber-300 border border-amber-600 font-semibold"
-                : "text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/50 border border-transparent cursor-pointer"
-            }`}
-          >
-            Major ({majorPackagesCount})
-          </button>
-
-          <button
-            type="button"
-            disabled={isUpgrading}
-            onClick={() => onFilterChange("all")}
-            className={`px-2.5 py-1 rounded-md transition-colors text-xs font-mono disabled:opacity-50 ${
-              activeFilter === "all"
-                ? "bg-zinc-800 text-zinc-100 font-semibold border border-zinc-700"
-                : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-transparent cursor-pointer"
-            }`}
-          >
-            All ({packages.length})
-          </button>
-
-          {(queuedPackagesCount > 0 || activeFilter === "queued") && (
-            <button
-              type="button"
-              disabled={isUpgrading}
-              onClick={() => onFilterChange("queued")}
-              className={`px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 text-xs font-mono disabled:opacity-50 ${
-                activeFilter === "queued"
-                  ? "bg-cyan-950 text-cyan-300 border border-cyan-600 font-semibold"
-                  : "text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/40 border border-cyan-900/40 cursor-pointer"
-              }`}
-            >
-              <ListFilter className="w-3 h-3 text-cyan-400" />
-              Queued ({queuedPackagesCount})
-            </button>
-          )}
-
-          {pinnedPackagesCount > 0 && (
-            <button
-              type="button"
-              disabled={isUpgrading}
-              onClick={() => onFilterChange("pinned")}
-              className={`px-2.5 py-1 rounded-md transition-colors text-xs font-mono disabled:opacity-50 ${
-                activeFilter === "pinned"
-                  ? "bg-zinc-800 text-zinc-100 border border-zinc-600 font-semibold"
-                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-transparent cursor-pointer"
-              }`}
-            >
-              Pinned ({pinnedPackagesCount})
-            </button>
-          )}
+              placeholder="Search package or CVE... (/)"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-zinc-950/90 border border-zinc-800/90 rounded-md pl-9 pr-8 py-1.5 text-xs font-mono text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600/30 disabled:opacity-50"
+            />
+            {search && (
+              <button
+                type="button"
+                aria-label="Clear search query"
+                disabled={isUpgrading}
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200 p-0.5 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
 
           {/* Custom Multi-select Manager Filter Dropdown */}
           {managers.length > 1 && (
@@ -411,11 +334,12 @@ export const PackageTable: FC<PackageTableProps> = ({
               <button
                 type="button"
                 disabled={isUpgrading}
+                aria-expanded={isManagerDropdownOpen}
                 onClick={() => setIsManagerDropdownOpen((prev) => !prev)}
-                className={`px-2.5 py-1 rounded-md text-xs font-mono transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+                className={`px-2.5 py-1.5 rounded-md text-xs font-mono transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${
                   isManagerFiltered
-                    ? "bg-zinc-800 text-zinc-100 font-semibold border border-zinc-700 shadow-sm"
-                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/80 bg-zinc-950/70"
+                    ? "bg-zinc-800 text-zinc-100 font-semibold border border-zinc-600 shadow-sm"
+                    : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/60 border border-zinc-800/90 bg-zinc-950/80"
                 }`}
                 title="Filter by package managers"
               >
@@ -425,38 +349,28 @@ export const PackageTable: FC<PackageTableProps> = ({
                     : `Managers: All (${managers.length})`}
                 </span>
                 <ChevronDown
-                  className={`w-3 h-3 text-zinc-400 transition-transform duration-150 ${
+                  className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-150 ${
                     isManagerDropdownOpen ? "rotate-180 text-zinc-200" : ""
                   }`}
                 />
               </button>
 
               {isManagerDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1.5 w-60 bg-zinc-950 border border-zinc-800/90 rounded-lg shadow-2xl p-2 z-30 font-mono text-xs backdrop-blur-md animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute top-full left-0 mt-1.5 w-64 bg-zinc-950 border border-zinc-800/90 rounded-lg shadow-2xl p-2 z-30 font-mono text-xs backdrop-blur-md animate-in fade-in zoom-in-95 duration-100">
                   <div className="flex items-center justify-between px-2 py-1 border-b border-zinc-800/80 mb-1.5">
-                    <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
-                      Managers
+                    <span className="text-[11px] font-semibold text-zinc-300 uppercase tracking-wider">
+                      Package Managers
                     </span>
-                    <div className="flex items-center gap-1.5">
+                    {isManagerFiltered && (
                       <button
                         type="button"
                         onClick={() => setSelectedManagers([])}
-                        className="text-[10px] text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors cursor-pointer"
-                        title="Select all package managers"
+                        className="text-[11px] text-cyan-400 hover:text-cyan-300 px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors cursor-pointer"
+                        title="Show all package managers"
                       >
-                        All
+                        Reset
                       </button>
-                      {isManagerFiltered && (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedManagers([])}
-                          className="text-[10px] text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors cursor-pointer"
-                          title="Reset filter"
-                        >
-                          Reset
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </div>
 
                   <div className="max-h-56 overflow-y-auto space-y-0.5 pr-0.5">
@@ -466,26 +380,29 @@ export const PackageTable: FC<PackageTableProps> = ({
                       return (
                         <div
                           key={m}
-                          onClick={() => toggleManager(m)}
-                          className="group flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-zinc-900 cursor-pointer transition-colors"
+                          className="group flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-zinc-900 transition-colors"
                         >
-                          <div className="flex items-center gap-2 min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => toggleManager(m)}
+                            className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer"
+                          >
                             {isChecked ? (
                               <CheckSquare className="w-3.5 h-3.5 text-zinc-200 shrink-0" />
                             ) : (
-                              <Square className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                              <Square className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                             )}
                             <span
                               className={`text-xs truncate ${
-                                isChecked ? "text-zinc-200 font-medium" : "text-zinc-500"
+                                isChecked ? "text-zinc-100 font-medium" : "text-zinc-400"
                               }`}
                             >
                               {m}
                             </span>
-                            <span className="text-[10px] text-zinc-500 font-mono">
+                            <span className="text-[11px] text-zinc-400 font-mono">
                               ({count})
                             </span>
-                          </div>
+                          </button>
 
                           <button
                             type="button"
@@ -493,7 +410,7 @@ export const PackageTable: FC<PackageTableProps> = ({
                               e.stopPropagation();
                               setSelectedManagers([m]);
                             }}
-                            className="text-[10px] text-zinc-500 hover:text-cyan-400 px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors opacity-70 group-hover:opacity-100 cursor-pointer"
+                            className="text-[11px] text-zinc-400 hover:text-cyan-400 px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors cursor-pointer"
                             title={`Filter only ${m}`}
                           >
                             only
@@ -506,20 +423,37 @@ export const PackageTable: FC<PackageTableProps> = ({
               )}
             </div>
           )}
+
+          {/* Queued Filter Toggle Pill */}
+          {(queuedPackagesCount > 0 || activeFilter === "queued") && (
+            <button
+              type="button"
+              disabled={isUpgrading}
+              onClick={() => onFilterChange(activeFilter === "queued" ? "all" : "queued")}
+              className={`px-2.5 py-1.5 rounded-md transition-colors flex items-center gap-1.5 text-xs font-mono disabled:opacity-50 cursor-pointer ${
+                activeFilter === "queued"
+                  ? "bg-cyan-950 text-cyan-200 border border-cyan-500 font-semibold"
+                  : "text-cyan-300 hover:text-cyan-200 bg-cyan-950/30 hover:bg-cyan-950/60 border border-cyan-900/60"
+              }`}
+            >
+              <ListFilter className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Queued ({queuedPackagesCount})</span>
+            </button>
+          )}
         </div>
 
         {/* Adaptive Contextual Selection Actions */}
-        <div className="flex items-center gap-2 border-t lg:border-t-0 pt-2 lg:pt-0 border-zinc-800/80">
+        <div className="flex flex-wrap items-center gap-2 border-t sm:border-t-0 pt-2 sm:pt-0 border-zinc-800/80">
           {activeFilter === "queued" ? (
             <>
-              <span className="text-[11px] font-mono text-zinc-400">
+              <span className="text-[11px] font-mono text-zinc-300">
                 {filteredSelected.length} queued
               </span>
               <button
                 type="button"
                 disabled={isUpgrading || filteredSelected.length === 0}
                 onClick={onDeselectAll}
-                className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40"
+                className="text-[11px] font-mono text-zinc-300 hover:text-zinc-100 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40"
               >
                 Clear Queue
               </button>
@@ -537,14 +471,14 @@ export const PackageTable: FC<PackageTableProps> = ({
             </>
           ) : isFilterActive ? (
             <>
-              <span className="text-[11px] font-mono text-zinc-400">
+              <span className="text-[11px] font-mono text-zinc-300">
                 {filteredSelected.length}/{filteredPackages.length} selected
               </span>
               <button
                 type="button"
                 disabled={isUpgrading}
                 onClick={() => onSelectOnlyFiltered(filteredPackages.map((p) => p.id))}
-                className="text-[11px] font-mono text-zinc-200 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium disabled:opacity-40"
+                className="text-[11px] font-mono text-zinc-100 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium disabled:opacity-40"
                 title="Select only the visible filtered packages and clear others"
               >
                 Select Visible ({filteredSelectable.length})
@@ -553,18 +487,28 @@ export const PackageTable: FC<PackageTableProps> = ({
                 type="button"
                 disabled={isUpgrading || filteredSelected.length === 0}
                 onClick={() => onDeselectFiltered(filteredPackages.map((p) => p.id))}
-                className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40"
+                className="text-[11px] font-mono text-zinc-300 hover:text-zinc-100 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40"
               >
                 Clear
               </button>
             </>
           ) : (
             <>
+              {securityPackagesCount > 0 && (
+                <button
+                  type="button"
+                  disabled={isUpgrading}
+                  onClick={onSelectSecurity}
+                  className="text-[11px] font-mono text-rose-300 hover:text-rose-100 bg-rose-950/40 hover:bg-rose-950/70 border border-rose-900/60 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40"
+                >
+                  Select CVEs ({securityPackagesCount})
+                </button>
+              )}
               <button
                 type="button"
                 disabled={isUpgrading}
                 onClick={onSelectSafe}
-                className="text-[11px] font-mono text-emerald-400 hover:text-emerald-200 bg-emerald-950/40 hover:bg-emerald-950/70 border border-emerald-900/60 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="text-[11px] font-mono text-emerald-300 hover:text-emerald-100 bg-emerald-950/40 hover:bg-emerald-950/70 border border-emerald-900/60 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Select Safe
               </button>
@@ -580,7 +524,7 @@ export const PackageTable: FC<PackageTableProps> = ({
                 type="button"
                 disabled={isUpgrading}
                 onClick={onDeselectAll}
-                className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="text-[11px] font-mono text-zinc-300 hover:text-zinc-100 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Clear
               </button>
@@ -595,29 +539,20 @@ export const PackageTable: FC<PackageTableProps> = ({
           <div className="flex items-center gap-2.5 text-cyan-200">
             <ListFilter className="w-4 h-4 text-cyan-400 shrink-0" />
             <span>
-              Queue Review: <strong>{filteredPackages.length}</strong> {filteredPackages.length === 1 ? "package" : "packages"} selected for upgrade across <strong>{grouped.length}</strong> {grouped.length === 1 ? "manager" : "managers"}.
+              Queue Review: <strong>{filteredPackages.length}</strong>{" "}
+              {filteredPackages.length === 1 ? "package" : "packages"} selected for upgrade across{" "}
+              <strong>{grouped.length}</strong> {grouped.length === 1 ? "manager" : "managers"}.
             </span>
           </div>
           <div className="flex items-center gap-2 self-end sm:self-center">
             <button
               type="button"
               disabled={isUpgrading}
-              onClick={onDeselectAll}
+              onClick={() => onFilterChange("all")}
               className="px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700/80 text-[11px] transition-colors cursor-pointer disabled:opacity-40"
             >
-              Clear Queue
+              Back to All
             </button>
-            {onUpgrade && (
-              <button
-                type="button"
-                disabled={isUpgrading || filteredPackages.length === 0}
-                onClick={onUpgrade}
-                className="flex items-center gap-1.5 px-3 py-1 rounded bg-zinc-100 hover:bg-white text-zinc-950 text-[11px] font-semibold transition-colors shadow-sm cursor-pointer disabled:opacity-40"
-              >
-                <ArrowUpCircle className="w-3.5 h-3.5" />
-                <span>Upgrade Queued ({filteredPackages.length})</span>
-              </button>
-            )}
           </div>
         </div>
       )}
@@ -631,7 +566,7 @@ export const PackageTable: FC<PackageTableProps> = ({
           </h3>
           <p className="text-xs text-zinc-400 mt-1 max-w-sm mx-auto">
             {activeFilter === "queued"
-              ? "Your upgrade queue is empty. Choose packages from Safe, Critical, or All to queue them."
+              ? "Your upgrade queue is empty. Choose packages from Safe, Vulnerabilities, or All to queue them."
               : search || activeFilter !== "all" || isManagerFiltered
               ? "No packages match the active search or filter criteria."
               : "No outdated packages or unpatched security advisories found across managers."}
@@ -648,29 +583,28 @@ export const PackageTable: FC<PackageTableProps> = ({
         </div>
       ) : (
         <div className="space-y-3 relative">
-          {/* Active Upgrade Lockdown Overlay */}
+          {/* Active Execution Lockdown Overlay */}
           {isUpgrading && (
             <div className="absolute inset-0 bg-zinc-950/70 backdrop-blur-[1.5px] z-30 rounded-lg flex flex-col items-center justify-start pt-16 pointer-events-auto">
-              <div className="bg-zinc-900 border border-zinc-700/80 rounded-xl p-5 shadow-2xl flex flex-col items-center gap-3 max-w-md text-center animate-in fade-in zoom-in-95">
+              <div className="bg-zinc-900 border border-zinc-700/80 rounded-xl p-5 shadow-2xl flex flex-col items-center gap-3 max-w-md text-center animate-in fade-in zoom-in-95 mx-4">
                 <div className="p-3 bg-blue-950/80 border border-blue-800/80 rounded-full">
                   <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
                 </div>
                 <div>
                   <h4 className="text-sm font-semibold font-mono text-zinc-100">
-                    Executing Package Upgrades
+                    {operationTitle}
                   </h4>
-                  <p className="text-xs text-zinc-400 mt-1 font-mono">
-                    {activeManager
-                      ? `Active manager: [${activeManager}] — logs streaming in drawer`
-                      : "Dispatched upgrade queue to system package managers..."}
+                  <p className="text-xs text-zinc-300 mt-1 font-mono">
+                    {operationSubtitle}
                   </p>
                 </div>
-                <span className="text-[11px] font-mono text-zinc-400 bg-zinc-950 px-3 py-1 rounded-md border border-zinc-800/80">
+                <span className="text-[11px] font-mono text-zinc-300 bg-zinc-950 px-3 py-1 rounded-md border border-zinc-800/80">
                   Interface locked — package selection disabled during execution
                 </span>
               </div>
             </div>
           )}
+
           {grouped.map(([manager, items]) => {
             const isManagerActive = isUpgrading && activeManager === manager;
             const managerOutcome = completedManagers[manager];
@@ -693,12 +627,13 @@ export const PackageTable: FC<PackageTableProps> = ({
                 }`}
               >
                 {/* Group Header */}
-                <div className="bg-zinc-950/80 border-b border-zinc-800/80 px-3.5 py-2 flex items-center justify-between select-none">
-                  <div className="flex items-center gap-2.5">
+                <div className="bg-zinc-950/80 border-b border-zinc-800/80 px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 select-none">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     {/* Collapsible toggle */}
                     <button
                       type="button"
                       disabled={isUpgrading}
+                      aria-label={collapsedManagers[manager] ? `Expand ${manager}` : `Collapse ${manager}`}
                       onClick={() => setCollapsedManagers((prev) => ({ ...prev, [manager]: !prev[manager] }))}
                       className="text-zinc-400 hover:text-zinc-200 p-0.5 rounded cursor-pointer disabled:opacity-40"
                       title={collapsedManagers[manager] ? "Expand manager" : "Collapse manager"}
@@ -713,6 +648,9 @@ export const PackageTable: FC<PackageTableProps> = ({
                     {/* Manager selection checkbox */}
                     <button
                       type="button"
+                      role="checkbox"
+                      aria-checked={isAllSelected}
+                      aria-label={isAllSelected ? `Deselect all ${manager} packages` : `Select all ${manager} packages`}
                       disabled={selectableItems.length === 0 || isUpgrading}
                       onClick={() => onToggleManagerSelection(manager)}
                       className="text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -727,40 +665,40 @@ export const PackageTable: FC<PackageTableProps> = ({
                       ) : isPartiallySelected ? (
                         <MinusSquare className="w-4 h-4 text-zinc-300" />
                       ) : (
-                        <Square className="w-4 h-4 text-zinc-600" />
+                        <Square className="w-4 h-4 text-zinc-500" />
                       )}
                     </button>
 
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs uppercase font-semibold text-zinc-200">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs uppercase font-semibold text-zinc-100">
                         {manager}
                       </span>
-                      <span className="text-[10px] font-mono text-zinc-400 bg-zinc-800/80 border border-zinc-700/50 px-1.5 py-0.2 rounded">
+                      <span className="text-[11px] font-mono text-zinc-300 bg-zinc-800/80 border border-zinc-700/50 px-1.5 py-0.5 rounded">
                         {selectedItems.length}/{items.length} selected
                       </span>
 
                       {/* Live manager status badge */}
                       {isManagerActive && (
-                        <span className="flex items-center gap-1 text-[10px] font-mono text-blue-300 bg-blue-950 border border-blue-700 px-1.5 py-0.2 rounded">
+                        <span className="flex items-center gap-1 text-[11px] font-mono text-blue-300 bg-blue-950 border border-blue-700 px-1.5 py-0.5 rounded">
                           <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
                           Upgrading...
                         </span>
                       )}
                       {managerOutcome === "ok" && (
-                        <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-300 bg-emerald-950 border border-emerald-700 px-1.5 py-0.2 rounded font-semibold">
+                        <span className="flex items-center gap-1 text-[11px] font-mono text-emerald-300 bg-emerald-950 border border-emerald-700 px-1.5 py-0.5 rounded font-semibold">
                           <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                           Done
                         </span>
                       )}
                       {managerOutcome === "failed" && (
-                        <span className="flex items-center gap-1 text-[10px] font-mono text-rose-300 bg-rose-950 border border-rose-700 px-1.5 py-0.2 rounded font-semibold">
+                        <span className="flex items-center gap-1 text-[11px] font-mono text-rose-300 bg-rose-950 border border-rose-700 px-1.5 py-0.5 rounded font-semibold">
                           Failed
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <span className="text-[11px] font-mono text-zinc-500">
+                  <span className="text-[11px] font-mono text-zinc-400">
                     {collapsedManagers[manager] ? "Collapsed" : `${items.length} items`}
                   </span>
                 </div>
@@ -789,7 +727,7 @@ export const PackageTable: FC<PackageTableProps> = ({
                         <div key={id} className="flex flex-col">
                           <div
                             onClick={() => !pinned && !isUpgrading && onTogglePackage(id)}
-                            className={`px-3.5 py-2 flex items-center justify-between gap-4 transition-colors ${
+                            className={`px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 transition-colors ${
                               isUpgrading
                                 ? "cursor-wait"
                                 : pinned
@@ -799,8 +737,8 @@ export const PackageTable: FC<PackageTableProps> = ({
                               hasVuln ? "border-l-2 border-l-rose-500 bg-rose-950/15" : ""
                             } ${isPkgActive ? "bg-blue-950/30 border-l-2 border-l-blue-400" : ""}`}
                           >
-                            {/* Left: Checkbox + Name + Source Link + Pin */}
-                            <div className="flex-1 flex items-center gap-2.5 min-w-0">
+                            {/* Left: Checkbox + Name + Source Link + Pin + Description + CVE Summary */}
+                            <div className="flex-1 flex items-start sm:items-center gap-2.5 min-w-0">
                               <button
                                 type="button"
                                 role="checkbox"
@@ -811,7 +749,7 @@ export const PackageTable: FC<PackageTableProps> = ({
                                   e.stopPropagation();
                                   if (!pinned && !isUpgrading) onTogglePackage(id);
                                 }}
-                                className="text-zinc-400 hover:text-zinc-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded shrink-0 disabled:cursor-not-allowed"
+                                className="mt-0.5 sm:mt-0 text-zinc-400 hover:text-zinc-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded shrink-0 disabled:cursor-not-allowed"
                               >
                                 {isPkgActive ? (
                                   <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
@@ -820,13 +758,13 @@ export const PackageTable: FC<PackageTableProps> = ({
                                 ) : selected ? (
                                   <CheckSquare className="w-4 h-4 text-zinc-100" />
                                 ) : (
-                                  <Square className="w-4 h-4 text-zinc-600" />
+                                  <Square className="w-4 h-4 text-zinc-500" />
                                 )}
                               </button>
 
-                              <div className="min-w-0 flex-1 flex flex-col justify-center py-0.5">
+                              <div className="min-w-0 flex-1 flex flex-col justify-center">
                                 <div className="flex items-center gap-2 min-w-0">
-                                  <span className="font-mono text-xs font-semibold text-zinc-200 truncate" title={name}>
+                                  <span className="font-mono text-xs font-semibold text-zinc-100 truncate" title={name}>
                                     {name}
                                   </span>
 
@@ -892,14 +830,14 @@ export const PackageTable: FC<PackageTableProps> = ({
                             </div>
 
                             {/* Right: Versions + Single Authority Badge */}
-                            <div className="flex items-center gap-3 shrink-0">
+                            <div className="pl-6 sm:pl-0 flex items-center justify-between sm:justify-end gap-3 shrink-0">
                               {/* Version flow */}
                               <div className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
-                                <span className="text-zinc-400 max-w-[12ch] sm:max-w-[20ch] truncate" title={cur}>
+                                <span className="text-zinc-400 max-w-[14ch] sm:max-w-[20ch] truncate" title={cur}>
                                   {cur}
                                 </span>
-                                <span className="text-zinc-500 select-none">→</span>
-                                <span className="text-zinc-100 font-semibold max-w-[12ch] sm:max-w-[20ch] truncate" title={lat}>
+                                <span className="text-zinc-400 select-none">→</span>
+                                <span className="text-zinc-100 font-semibold max-w-[14ch] sm:max-w-[20ch] truncate" title={lat}>
                                   {lat}
                                 </span>
                               </div>
@@ -921,6 +859,7 @@ export const PackageTable: FC<PackageTableProps> = ({
                                 ) : hasVuln ? (
                                   <button
                                     type="button"
+                                    aria-expanded={Boolean(isExpanded)}
                                     onClick={(e) => toggleExpand(id, e)}
                                     className={`inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded border cursor-pointer uppercase tracking-wider whitespace-nowrap transition-colors ${
                                       maxSev === "CRITICAL"
@@ -959,7 +898,7 @@ export const PackageTable: FC<PackageTableProps> = ({
                                     PATCH
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center text-[11px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 uppercase tracking-wider whitespace-nowrap">
+                                  <span className="inline-flex items-center text-[11px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 uppercase tracking-wider whitespace-nowrap">
                                     UPDATE
                                   </span>
                                 )}

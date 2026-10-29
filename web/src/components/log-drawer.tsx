@@ -30,7 +30,7 @@ export const LogDrawer: FC<LogDrawerProps> = ({
 
   useEffect(() => {
     if (autoScroll && logEndRef.current) {
-      logEndRef.current.scrollIntoView({ behavior: "smooth" });
+      logEndRef.current.scrollIntoView({ behavior: "auto" });
     }
   }, [events, autoScroll]);
 
@@ -53,34 +53,43 @@ export const LogDrawer: FC<LogDrawerProps> = ({
   const isError = lastEvent?.type === "error" || lastEvent?.status === "failed";
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-950 border-t border-zinc-800 shadow-2xl flex flex-col max-h-[60vh] transition-all">
+    <div
+      role="region"
+      aria-label="Execution Log"
+      className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-950 border-t border-zinc-800 shadow-2xl flex flex-col max-h-[60vh] transition-all"
+    >
       {/* Drawer Header */}
-      <div className="px-6 py-2.5 bg-zinc-900/90 border-b border-zinc-800/80 flex items-center justify-between">
+      <div className="px-4 sm:px-6 py-2.5 bg-zinc-900/90 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <Terminal className="w-4 h-4 text-zinc-400" />
-          <span className="font-mono text-xs font-semibold text-zinc-200">
+          <span className="font-mono text-xs font-semibold text-zinc-100">
             Execution Log
           </span>
 
           {/* Status Indicator */}
           {isUpgrading && !isComplete ? (
-            <span className="flex items-center gap-1.5 text-[10px] font-mono font-semibold text-amber-300 bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">
+            <span className="flex items-center gap-1.5 text-[11px] font-mono font-semibold text-amber-300 bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">
               <Loader2 className="w-3 h-3 animate-spin text-amber-400" /> Running
             </span>
           ) : isComplete ? (
-            <span className="flex items-center gap-1.5 text-[10px] font-mono font-semibold text-emerald-300 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">
+            <span className="flex items-center gap-1.5 text-[11px] font-mono font-semibold text-emerald-300 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">
               <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Done
             </span>
           ) : isError ? (
-            <span className="flex items-center gap-1.5 text-[10px] font-mono font-semibold text-rose-300 bg-rose-950/60 border border-rose-800/80 px-2 py-0.5 rounded">
+            <span className="flex items-center gap-1.5 text-[11px] font-mono font-semibold text-rose-300 bg-rose-950/60 border border-rose-800/80 px-2 py-0.5 rounded">
               <XCircle className="w-3 h-3 text-rose-400" /> Error
             </span>
           ) : null}
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-400 cursor-pointer mr-2 select-none">
+          <label
+            htmlFor="log-autoscroll"
+            className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-300 cursor-pointer mr-2 select-none"
+          >
             <input
+              id="log-autoscroll"
+              name="log-autoscroll"
               type="checkbox"
               checked={autoScroll}
               onChange={(e) => setAutoScroll(e.target.checked)}
@@ -93,7 +102,7 @@ export const LogDrawer: FC<LogDrawerProps> = ({
             type="button"
             onClick={handleCopy}
             disabled={events.length === 0}
-            className="flex items-center gap-1 text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-800/80 hover:bg-zinc-800 px-2 py-1 rounded-md transition-colors disabled:opacity-40 cursor-pointer"
+            className="flex items-center gap-1 text-[11px] font-mono text-zinc-300 hover:text-zinc-100 bg-zinc-800/80 hover:bg-zinc-800 px-2 py-1 rounded-md transition-colors disabled:opacity-40 cursor-pointer"
             title="Copy logs to clipboard"
           >
             {copied ? (
@@ -112,13 +121,14 @@ export const LogDrawer: FC<LogDrawerProps> = ({
           <button
             type="button"
             onClick={onClear}
-            className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-800/80 hover:bg-zinc-800 px-2 py-1 rounded-md transition-colors cursor-pointer"
+            className="text-[11px] font-mono text-zinc-300 hover:text-zinc-100 bg-zinc-800/80 hover:bg-zinc-800 px-2 py-1 rounded-md transition-colors cursor-pointer"
           >
             Clear
           </button>
 
           <button
             type="button"
+            aria-label="Close execution log drawer"
             onClick={onClose}
             className="text-zinc-400 hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-800 transition-colors cursor-pointer"
             title="Close log drawer (Esc)"
@@ -129,9 +139,9 @@ export const LogDrawer: FC<LogDrawerProps> = ({
       </div>
 
       {/* Terminal Content */}
-      <div className="p-4 font-mono text-xs overflow-y-auto space-y-1 bg-black/70 min-h-[180px] max-h-[420px] selection:bg-zinc-700">
+      <div className="p-4 font-mono text-xs overflow-y-auto overflow-x-hidden space-y-1 bg-black/70 min-h-[180px] max-h-[420px] selection:bg-zinc-700">
         {events.length === 0 ? (
-          <div className="text-zinc-500 italic">No output yet. Trigger an action to stream execution logs.</div>
+          <div className="text-zinc-400 italic">No output yet. Trigger an action to stream execution logs.</div>
         ) : (
           events.map((ev, index) => {
             const isPkgStart = ev.type === "package_start";
@@ -142,7 +152,7 @@ export const LogDrawer: FC<LogDrawerProps> = ({
             return (
               <div
                 key={index}
-                className={`leading-relaxed ${
+                className={`leading-relaxed break-words whitespace-pre-wrap ${
                   isPkgStart
                     ? "text-blue-400 font-semibold mt-2"
                     : isPkgDone
@@ -156,7 +166,7 @@ export const LogDrawer: FC<LogDrawerProps> = ({
                     : "text-zinc-300"
                 }`}
               >
-                <span className="text-zinc-600 select-none mr-2 font-light">›</span>
+                <span className="text-zinc-500 select-none mr-2 font-light">›</span>
                 {ev.message}
               </div>
             );

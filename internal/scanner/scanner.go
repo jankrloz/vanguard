@@ -53,8 +53,10 @@ func DeriveSourceURL(manager, name string) string {
 		return "https://formulae.brew.sh/cask/" + name
 	case "npm", "pnpm", "yarn", "bun":
 		return "https://www.npmjs.com/package/" + name
-	case "pip", "pipx", "pypi", "uv", "poetry", "pdm":
+	case "pip", "pipx", "pypi", "uv", "uvx", "poetry", "pdm":
 		return "https://pypi.org/project/" + name
+	case "gcloud":
+		return "https://cloud.google.com/sdk/docs/components"
 	case "cargo", "rust":
 		return "https://crates.io/crates/" + name
 	case "gem", "bundler", "ruby":
@@ -314,6 +316,38 @@ func cleanDescription(raw string) string {
 	return res
 }
 
+var gcloudComponentDescriptions = map[string]string{
+	"core":                         "Google Cloud CLI Core Libraries and tools",
+	"bq":                           "BigQuery Command Line Tool for interactive SQL and dataset management",
+	"gsutil":                       "Cloud Storage Command Line Tool for bucket and object transfers",
+	"gke-gcloud-auth-plugin":       "GKE authentication plugin for kubectl client-go credentials",
+	"kubectl":                      "Kubernetes command-line cluster orchestration tool",
+	"kubectl-oidc":                 "kubectl plugin for OpenID Connect authentication",
+	"alpha":                        "gcloud CLI Alpha release channel commands",
+	"beta":                         "gcloud CLI Beta release channel commands",
+	"preview":                      "gcloud CLI Preview commands",
+	"cbt":                          "Cloud Bigtable Command Line Tool",
+	"bigtable":                     "Cloud Bigtable local emulator",
+	"cloud-sql-proxy":              "Cloud SQL Auth Proxy v2 for IAM-authenticated database connections",
+	"cloud-run-proxy":              "Cloud Run local proxy for authenticated service testing",
+	"pubsub-emulator":              "Cloud Pub/Sub local message broker emulator",
+	"cloud-datastore-emulator":     "Cloud Datastore local emulator",
+	"cloud-firestore-emulator":     "Cloud Firestore local emulator",
+	"docker-credential-gcr":        "Google Container Registry Docker credential helper",
+	"gcloud-crc32c":                "Google Cloud CRC32C hash verification utility",
+	"bundled-python3-unix":         "Bundled Python 3 runtime for Google Cloud CLI",
+	"app-engine-python":            "App Engine Python standard environment extensions",
+	"app-engine-go":                "App Engine Go standard environment extensions",
+	"app-engine-java":              "App Engine Java standard environment extensions",
+	"anthos-auth":                  "Anthos authentication client plugin",
+	"config-connector":             "Kubernetes Config Connector CLI for Google Cloud resources",
+	"enterprise-certificate-proxy": "Enterprise Certificate Proxy for context-aware access",
+	"spanner-cli":                  "Cloud Spanner interactive SQL command-line tool",
+	"spanner-migration-tool":       "Cloud Spanner schema and data migration tool",
+	"istioctl":                     "Istio service mesh configuration command-line utility",
+	"nomos":                        "Anthos Config Management (nomos) CLI",
+}
+
 func enrichDescriptions(ctx context.Context, packages []domain.Package) {
 	var brewNames []string
 	for _, p := range packages {
@@ -325,14 +359,22 @@ func enrichDescriptions(ctx context.Context, packages []domain.Package) {
 	if len(brewNames) > 0 {
 		descMap := fetchBrewDescriptions(ctx, brewNames)
 		for i := range packages {
+			if packages[i].Description != "" {
+				continue
+			}
 			if desc, ok := descMap[packages[i].Name]; ok && desc != "" {
 				packages[i].Description = cleanDescription(desc)
+			} else if idx := strings.LastIndex(packages[i].Name, "/"); idx != -1 {
+				shortName := packages[i].Name[idx+1:]
+				if desc, ok := descMap[shortName]; ok && desc != "" {
+					packages[i].Description = cleanDescription(desc)
+				}
 			}
 		}
 	}
 
-	// Concurrently enrich descriptions for gem, npm/pnpm/bun/yarn, pip/pipx/uv, and cargo
-	client := &http.Client{Timeout: 3 * time.Second}
+	// Concurrently enrich descriptions for gem, npm/pnpm/bun/yarn, pip/pipx/uv/uvx, gcloud, and cargo
+	client := &http.Client{Timeout: 4 * time.Second}
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 8)
 
@@ -351,6 +393,10 @@ func enrichDescriptions(ctx context.Context, packages []domain.Package) {
 			var desc string
 
 			switch mgr {
+			case "gcloud":
+				if d, ok := gcloudComponentDescriptions[p.Name]; ok {
+					desc = d
+				}
 			case "gem", "bundler":
 				subCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
 				out, err := exec.CommandContext(subCtx, "gem", "specification", p.Name, "description").Output()
@@ -371,23 +417,36 @@ func enrichDescriptions(ctx context.Context, packages []domain.Package) {
 						var data struct {
 							Description string `json:"description"`
 						}
-						_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&data)
+						_ = json.NewDecoder(io.LimitReader(resp.Body, 2<<20)).Decode(&data)
 						_ = resp.Body.Close()
 						desc = cleanDescription(data.Description)
 					}
 				}
 			case "pip", "pipx", "uv", "uvx", "poetry", "pdm":
-				reqURL := fmt.Sprintf("https://pypi.org/pypi/%s/json", url.PathEscape(p.Name))
-				if req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil); err == nil {
-					if resp, err := client.Do(req); err == nil {
-						var data struct {
-							Info struct {
-								Summary string `json:"summary"`
-							} `json:"info"`
+				// Query version-specific endpoint first (small payload ~15KB without historical releases map)
+				urls := []string{
+					fmt.Sprintf("https://pypi.org/pypi/%s/%s/json", url.PathEscape(p.Name), url.PathEscape(p.LatestVersion)),
+					fmt.Sprintf("https://pypi.org/pypi/%s/json", url.PathEscape(p.Name)),
+				}
+				for _, reqURL := range urls {
+					if req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil); err == nil {
+						if resp, err := client.Do(req); err == nil {
+							if resp.StatusCode == http.StatusOK {
+								var data struct {
+									Info struct {
+										Summary string `json:"summary"`
+									} `json:"info"`
+								}
+								_ = json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&data)
+								_ = resp.Body.Close()
+								desc = cleanDescription(data.Info.Summary)
+								if desc != "" {
+									break
+								}
+							} else {
+								_ = resp.Body.Close()
+							}
 						}
-						_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&data)
-						_ = resp.Body.Close()
-						desc = cleanDescription(data.Info.Summary)
 					}
 				}
 			case "cargo", "rust":
@@ -400,7 +459,7 @@ func enrichDescriptions(ctx context.Context, packages []domain.Package) {
 								Description string `json:"description"`
 							} `json:"crate"`
 						}
-						_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&data)
+						_ = json.NewDecoder(io.LimitReader(resp.Body, 2<<20)).Decode(&data)
 						_ = resp.Body.Close()
 						desc = cleanDescription(data.Crate.Description)
 					}
@@ -422,36 +481,68 @@ func fetchBrewDescriptions(ctx context.Context, names []string) map[string]strin
 		return descMap
 	}
 
-	for i := 0; i < len(names); i += 50 {
-		end := i + 50
-		if end > len(names) {
-			end = len(names)
+	// Primary fast path: `brew info --json=v2 --installed` returns descriptions for all
+	// installed formulae (including custom taps) and casks in one local call without
+	// failing on untrusted tap names.
+	subCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	out, err := exec.CommandContext(subCtx, "brew", "info", "--json=v2", "--installed").Output()
+	cancel()
+	if err == nil && len(out) > 0 {
+		var info struct {
+			Formulae []struct {
+				Name     string `json:"name"`
+				FullName string `json:"full_name"`
+				Desc     string `json:"desc"`
+			} `json:"formulae"`
+			Casks []struct {
+				Token string `json:"token"`
+				Desc  string `json:"desc"`
+			} `json:"casks"`
 		}
-		batch := names[i:end]
-		args := append([]string{"desc"}, batch...)
-
-		subCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
-		cmd := exec.CommandContext(subCtx, "brew", args...)
-		out, err := cmd.Output()
-		cancel()
-
-		if err != nil && len(out) == 0 {
-			continue
-		}
-
-		scanner := bufio.NewScanner(bytes.NewReader(out))
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if idx := strings.Index(line, ":"); idx != -1 {
-				pkgPart := strings.TrimSpace(line[:idx])
-				pkgPart = strings.TrimSuffix(pkgPart, " ✔")
-				pkgPart = strings.TrimSpace(pkgPart)
-				descPart := strings.TrimSpace(line[idx+1:])
-				if pkgPart != "" && descPart != "" {
-					descMap[pkgPart] = descPart
+		if json.Unmarshal(out, &info) == nil {
+			for _, f := range info.Formulae {
+				if f.Desc != "" {
+					descMap[f.Name] = f.Desc
+					if f.FullName != "" {
+						descMap[f.FullName] = f.Desc
+					}
+				}
+			}
+			for _, c := range info.Casks {
+				if c.Desc != "" {
+					descMap[c.Token] = c.Desc
 				}
 			}
 		}
 	}
+
+	// Fallback for any package not covered by --installed
+	var missing []string
+	for _, n := range names {
+		if _, ok := descMap[n]; !ok {
+			missing = append(missing, n)
+		}
+	}
+	for _, pkgName := range missing {
+		cCtx, cCancel := context.WithTimeout(ctx, 2*time.Second)
+		dOut, dErr := exec.CommandContext(cCtx, "brew", "desc", pkgName).Output()
+		cCancel()
+		if dErr != nil && len(dOut) == 0 {
+			continue
+		}
+		scanner := bufio.NewScanner(bytes.NewReader(dOut))
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if idx := strings.Index(line, ":"); idx != -1 {
+				pkgPart := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(line[:idx]), " ✔"))
+				descPart := strings.TrimSpace(line[idx+1:])
+				if pkgPart != "" && descPart != "" {
+					descMap[pkgPart] = descPart
+					descMap[pkgName] = descPart
+				}
+			}
+		}
+	}
+
 	return descMap
 }
