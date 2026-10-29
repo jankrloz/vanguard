@@ -1,5 +1,11 @@
 export type ChangeType = "patch" | "minor" | "major" | "unknown";
 
+export interface Vulnerability {
+  id: string;
+  summary: string;
+  severity: string;
+}
+
 export interface Package {
   id: string;
   name: string;
@@ -11,6 +17,9 @@ export interface Package {
   pinned: boolean;
   selected: boolean;
   description?: string;
+  vulnerabilities?: Vulnerability[];
+  has_vulnerability?: boolean;
+  max_severity?: string;
 }
 
 export interface ScanSummary {
@@ -18,6 +27,7 @@ export interface ScanSummary {
   safe_count: number;
   major_count: number;
   pinned_count: number;
+  security_fix_count: number;
 }
 
 export interface ScanResult {

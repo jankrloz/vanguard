@@ -1,10 +1,11 @@
 import React from "react";
-import { ShieldCheck, ShieldAlert, RefreshCw, Trash2, ArrowUpCircle } from "lucide-react";
+import { ShieldCheck, ShieldAlert, RefreshCw, Trash2, ArrowUpCircle, Flame } from "lucide-react";
 import type { SystemStatus } from "../lib/types";
 
 interface HeaderProps {
   status: SystemStatus | null;
   selectedCount: number;
+  securityCount: number;
   isScanning: boolean;
   isUpgrading: boolean;
   onScan: () => void;
@@ -15,6 +16,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   status,
   selectedCount,
+  securityCount,
   isScanning,
   isUpgrading,
   onScan,
@@ -35,8 +37,14 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 bg-zinc-800/80 border border-zinc-700/50 px-1.5 py-0.5 rounded">
                 v1.0
               </span>
+              {securityCount > 0 && (
+                <span className="flex items-center gap-1 text-[11px] font-mono font-semibold text-rose-300 bg-rose-950/90 border border-rose-800 px-2 py-0.5 rounded animate-pulse">
+                  <Flame className="w-3 h-3 text-rose-400" />
+                  {securityCount} CVE {securityCount === 1 ? "Fix" : "Fixes"} Urgent
+                </span>
+              )}
             </div>
-            <p className="text-xs text-zinc-400">System Package & Dependency Controller</p>
+            <p className="text-xs text-zinc-400">Vulnerability Shield & Package Controller</p>
           </div>
         </div>
 

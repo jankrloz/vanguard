@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jankrloz/vanguard/internal/domain"
+	"github.com/jankrloz/vanguard/internal/security"
 )
 
 type BrewOutdatedResponse struct {
@@ -75,11 +76,20 @@ func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 	wg.Wait()
 
 	var packages []domain.Package
+	for _, p := range pkgMap {
+		packages = append(packages, p)
+	}
+
+	// Enrich with security vulnerability intelligence (OSV.dev CVEs/GHSAs)
+	advisor := security.NewAdvisor()
+	packages = advisor.EnrichPackages(ctx, packages)
+
 	safeCount := 0
 	majorCount := 0
 	pinnedCount := 0
+	securityFixCount := 0
 
-	for _, p := range pkgMap {
+	for _, p := range packages {
 		if p.Pinned {
 			pinnedCount++
 		}
@@ -89,16 +99,28 @@ func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 		if p.ChangeType == domain.ChangeMajor {
 			majorCount++
 		}
-		packages = append(packages, p)
+		if p.HasVulnerability {
+			securityFixCount++
+		}
+	}
+
+	// Sort: packages with known vulnerabilities come first
+	for i := 0; i < len(packages); i++ {
+		for j := i + 1; j < len(packages); j++ {
+			if !packages[i].HasVulnerability && packages[j].HasVulnerability {
+				packages[i], packages[j] = packages[j], packages[i]
+			}
+		}
 	}
 
 	return &domain.ScanResult{
 		Packages: packages,
 		Summary: domain.ScanSummary{
-			TotalPackages: len(packages),
-			SafeCount:     safeCount,
-			MajorCount:    majorCount,
-			PinnedCount:   pinnedCount,
+			TotalPackages:    len(packages),
+			SafeCount:        safeCount,
+			MajorCount:       majorCount,
+			PinnedCount:      pinnedCount,
+			SecurityFixCount: securityFixCount,
 		},
 	}, nil
 }
