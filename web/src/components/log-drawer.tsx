@@ -18,7 +18,15 @@ export const LogDrawer: FC<LogDrawerProps> = ({
   onClear,
 }) => {
   const [autoScroll, setAutoScroll] = useState(true);
+  const [copied, setCopied] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
+
+  const handleCopy = () => {
+    const text = events.map((e) => e.message).join("\n");
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   useEffect(() => {
     if (autoScroll && logEndRef.current) {
@@ -68,6 +76,14 @@ export const LogDrawer: FC<LogDrawerProps> = ({
             />
             Auto-scroll
           </label>
+
+          <button
+            onClick={handleCopy}
+            disabled={events.length === 0}
+            className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-800/80 hover:bg-zinc-800 px-2 py-1 rounded disabled:opacity-40"
+          >
+            {copied ? "Copied ✓" : "Copy"}
+          </button>
 
           <button
             onClick={onClear}

@@ -111,6 +111,7 @@ func runDashboard(ctx context.Context) {
 	pkgExecutor := executor.New()
 
 	srv := server.New(server.Config{
+		Version:    Version,
 		DevMode:    *devMode,
 		ViteDevURL: "http://127.0.0.1:5173",
 		StaticFS:   embeddedFS,

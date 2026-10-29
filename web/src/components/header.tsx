@@ -39,7 +39,7 @@ export const Header: FC<HeaderProps> = ({
             <div className="flex items-center gap-2">
               <h1 className="text-base font-semibold tracking-tight text-zinc-100">VANGUARD</h1>
               <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 bg-zinc-800/80 border border-zinc-700/50 px-1.5 py-0.5 rounded">
-                v1.0
+                {status?.version ? `v${status.version}` : "v0.1.2"}
               </span>
               {securityCount > 0 && (
                 <span className="flex items-center gap-1 text-[11px] font-mono font-semibold text-rose-300 bg-rose-950/90 border border-rose-800 px-2 py-0.5 rounded animate-pulse">

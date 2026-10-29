@@ -42,6 +42,9 @@ func (m *mockExecutor) ExecuteTopgrade(ctx context.Context, onEvent executor.Eve
 }
 
 func TestServerEndpoints(t *testing.T) {
+	t.Setenv("VANGUARD_CONFIG_DIR", t.TempDir())
+	t.Setenv("VANGUARD_STATE_DIR", t.TempDir())
+
 	scanner := &mockScanner{
 		result: &domain.ScanResult{
 			Packages: []domain.Package{

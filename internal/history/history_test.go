@@ -1,22 +1,12 @@
 package history
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 )
 
 func TestHistoryAppendAndRead(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "vanguard-hist-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-	_ = os.Setenv("HOME", tmpDir)
+	t.Setenv("VANGUARD_STATE_DIR", t.TempDir())
 
 	e1 := Entry{
 		Timestamp:   time.Now().Add(-1 * time.Minute),
@@ -56,5 +46,4 @@ func TestHistoryAppendAndRead(t *testing.T) {
 	if recent[0].PackageID != "brew:curl" {
 		t.Errorf("expected e2 first, got %s", recent[0].PackageID)
 	}
-	_ = filepath.Join
 }

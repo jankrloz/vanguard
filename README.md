@@ -95,10 +95,13 @@ vg dashboard
 # Headless security & outdated scan (exits 1 if critical CVEs found)
 vg check
 vg check --security-only
+vg check --manager cask
+vg check --limit 20
 
 # Headless non-interactive package upgrades directly in terminal
 vg apply --yes
 vg apply --security-only -y
+vg apply --manager npm -y
 vg apply --all -y
 
 # View persistent upgrade audit history

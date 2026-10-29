@@ -33,6 +33,7 @@ type Executor interface {
 }
 
 type Config struct {
+	Version    string
 	DevMode    bool
 	ViteDevURL string
 	StaticFS   fs.FS
@@ -48,6 +49,7 @@ type Server struct {
 	clients    map[chan domain.UpgradeEvent]struct{}
 	lastResult *domain.ScanResult
 	resultMu   sync.RWMutex
+	scanMu     sync.Mutex
 }
 
 func New(cfg Config) *Server {
@@ -122,8 +124,14 @@ func (s *Server) broadcastEvent(event domain.UpgradeEvent) {
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	sudoActive := exec.Command("sudo", "-n", "true").Run() == nil
 
+	version := s.cfg.Version
+	if version == "" {
+		version = "0.1.2"
+	}
+
 	resp := map[string]interface{}{
 		"status":      "ok",
+		"version":     version,
 		"sudo_active": sudoActive,
 		"platform":    runtime.GOOS,
 		"timestamp":   time.Now().Format(time.RFC3339),
@@ -145,6 +153,19 @@ func (s *Server) handleOutdated(w http.ResponseWriter, r *http.Request) {
 	cached := s.lastResult
 	s.resultMu.RUnlock()
 
+	if cached != nil && !refresh {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(cached)
+		return
+	}
+
+	s.scanMu.Lock()
+	defer s.scanMu.Unlock()
+
+	// Double-check cache in case another concurrent request completed while waiting
+	s.resultMu.RLock()
+	cached = s.lastResult
+	s.resultMu.RUnlock()
 	if cached != nil && !refresh {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(cached)

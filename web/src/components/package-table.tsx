@@ -25,11 +25,20 @@ export const PackageTable: FC<PackageTableProps> = ({
   const [filterType, setFilterType] = useState<"all" | "security" | "safe" | "major">("all");
   const [selectedManager, setSelectedManager] = useState<string>("all");
   const [expandedVulns, setExpandedVulns] = useState<Record<string, boolean>>({});
+  const [collapsedManagers, setCollapsedManagers] = useState<Record<string, boolean>>({});
 
   const managers = useMemo(() => {
     const set = new Set<string>();
     packages.forEach((p) => set.add(p.manager));
     return Array.from(set).sort();
+  }, [packages]);
+
+  const managerCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    packages.forEach((p) => {
+      map.set(p.manager, (map.get(p.manager) || 0) + 1);
+    });
+    return map;
   }, [packages]);
 
   const securityPackagesCount = useMemo(() => {
@@ -146,10 +155,10 @@ export const PackageTable: FC<PackageTableProps> = ({
               onChange={(e) => setSelectedManager(e.target.value)}
               className="bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 rounded px-2 py-1 ml-1 focus:outline-none"
             >
-              <option value="all">All Managers</option>
+              <option value="all">All Managers ({packages.length})</option>
               {managers.map((m) => (
                 <option key={m} value={m}>
-                  {m}
+                  {m} ({managerCounts.get(m) || 0})
                 </option>
               ))}
             </select>
@@ -203,9 +212,17 @@ export const PackageTable: FC<PackageTableProps> = ({
               key={manager}
               className="bg-zinc-900/60 border border-zinc-800/80 rounded-lg overflow-hidden"
             >
-              {/* Group Header */}
-              <div className="bg-zinc-950/70 border-b border-zinc-800/80 px-4 py-2.5 flex items-center justify-between">
+              {/* Group Header (Collapsible) */}
+              <div
+                onClick={() => setCollapsedManagers((prev) => ({ ...prev, [manager]: !prev[manager] }))}
+                className="bg-zinc-950/70 border-b border-zinc-800/80 px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-zinc-900/80 transition-colors select-none"
+              >
                 <div className="flex items-center gap-2">
+                  {collapsedManagers[manager] ? (
+                    <ChevronRight className="w-3.5 h-3.5 text-zinc-400" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
+                  )}
                   <span className="font-mono text-xs uppercase font-semibold text-zinc-200">
                     {manager}
                   </span>
@@ -213,10 +230,14 @@ export const PackageTable: FC<PackageTableProps> = ({
                     {items.length} {items.length === 1 ? "package" : "packages"}
                   </span>
                 </div>
+                <span className="text-[10px] font-mono text-zinc-500">
+                  {collapsedManagers[manager] ? "Click to expand" : "Click to collapse"}
+                </span>
               </div>
 
               {/* Table */}
-              <div className="divide-y divide-zinc-800/50">
+              {!collapsedManagers[manager] && (
+                <div className="divide-y divide-zinc-800/50">
                 {items.map((pkg) => {
                   const id = pkg.id;
                   const name = pkg.name;
@@ -375,6 +396,7 @@ export const PackageTable: FC<PackageTableProps> = ({
                   );
                 })}
               </div>
+              )}
             </div>
           ))}
         </div>

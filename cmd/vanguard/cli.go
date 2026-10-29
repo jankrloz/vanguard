@@ -22,6 +22,8 @@ import (
 func runCheck(ctx context.Context, args []string) int {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	secOnly := fs.Bool("security-only", false, "Display only packages with known CVEs")
+	mgrFilter := fs.String("manager", "", "Filter display to a specific package manager")
+	limit := fs.Int("limit", 0, "Limit number of packages to print (0 for all)")
 	_ = fs.Parse(args)
 
 	fmt.Println("\n  ▲ VANGUARD — Security & Outdated Package Check")
@@ -43,7 +45,13 @@ func runCheck(ctx context.Context, args []string) int {
 		if *secOnly && !p.HasVulnerability {
 			continue
 		}
+		if *mgrFilter != "" && !strings.EqualFold(p.Manager, *mgrFilter) {
+			continue
+		}
 		count++
+		if *limit > 0 && count > *limit {
+			continue
+		}
 
 		secText := "None"
 		if p.HasVulnerability {
@@ -71,6 +79,10 @@ func runCheck(ctx context.Context, args []string) int {
 	}
 	_ = w.Flush()
 
+	if *limit > 0 && count > *limit {
+		fmt.Printf("  ... and %d more packages (use --limit 0 to print all)\n", count-*limit)
+	}
+
 	fmt.Println("  ───────────────────────────────────────────────")
 	fmt.Printf("  Total Outdated: %d | Safe Minor/Patch: %d | Major Breaking: %d | Urgent CVEs: %d\n\n",
 		res.Summary.TotalPackages,
@@ -89,6 +101,7 @@ func runApply(ctx context.Context, args []string) int {
 	fs := flag.NewFlagSet("apply", flag.ExitOnError)
 	secOnly := fs.Bool("security-only", false, "Upgrade only packages fixing known CVEs")
 	all := fs.Bool("all", false, "Upgrade all outdated packages (including major breaking)")
+	mgrFilter := fs.String("manager", "", "Target a specific package manager only")
 	autoYes := fs.Bool("yes", false, "Auto-confirm upgrade prompt without interactive input")
 	autoYesShort := fs.Bool("y", false, "Auto-confirm upgrade prompt")
 	_ = fs.Parse(args)
@@ -110,6 +123,9 @@ func runApply(ctx context.Context, args []string) int {
 	var candidates []domain.Package
 	for _, p := range res.Packages {
 		if p.Pinned {
+			continue
+		}
+		if *mgrFilter != "" && !strings.EqualFold(p.Manager, *mgrFilter) {
 			continue
 		}
 		if *secOnly {

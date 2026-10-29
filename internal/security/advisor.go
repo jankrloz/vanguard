@@ -101,21 +101,31 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 		return pkgs
 	}
 
-	var queries []OSVQuery
-	for _, p := range pkgs {
-		ecosystem := MapManagerToEcosystem(p.Manager)
-		q := OSVQuery{
-			Package: OSVPackage{
-				Name:      p.Name,
-				Ecosystem: ecosystem,
-			},
-			Version: p.CurrentVersion,
-		}
-		queries = append(queries, q)
+	// 1. Identify packages belonging to supported OSV ecosystems (prevents cross-ecosystem false matches)
+	type queryTarget struct {
+		pkgIndex int
+		query    OSVQuery
 	}
 
-	reqBody, err := json.Marshal(OSVBatchRequest{Queries: queries})
-	if err != nil {
+	var targets []queryTarget
+	for i, p := range pkgs {
+		ecosystem := MapManagerToEcosystem(p.Manager)
+		if ecosystem == "" {
+			continue
+		}
+		targets = append(targets, queryTarget{
+			pkgIndex: i,
+			query: OSVQuery{
+				Package: OSVPackage{
+					Name:      p.Name,
+					Ecosystem: ecosystem,
+				},
+				Version: p.CurrentVersion,
+			},
+		})
+	}
+
+	if len(targets) == 0 {
 		return pkgs
 	}
 
@@ -124,65 +134,93 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 		endpoint = "https://api.osv.dev/v1/querybatch"
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(reqBody))
-	if err != nil {
-		return pkgs
-	}
-	req.Header.Set("Content-Type", "application/json")
+	// 2. Query in chunks of max 500 (OSV API maximum is 1000)
+	const chunkSize = 500
+	for chunkStart := 0; chunkStart < len(targets); chunkStart += chunkSize {
+		chunkEnd := chunkStart + chunkSize
+		if chunkEnd > len(targets) {
+			chunkEnd = len(targets)
+		}
 
-	resp, err := a.client.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return pkgs
-	}
-	defer resp.Body.Close()
+		currentChunk := targets[chunkStart:chunkEnd]
+		var queries []OSVQuery
+		for _, t := range currentChunk {
+			queries = append(queries, t.query)
+		}
 
-	var batchResp OSVBatchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&batchResp); err != nil {
-		return pkgs
-	}
-
-	for i, res := range batchResp.Results {
-		if i >= len(pkgs) || len(res.Vulns) == 0 {
+		reqBody, err := json.Marshal(OSVBatchRequest{Queries: queries})
+		if err != nil {
 			continue
 		}
 
-		var vulns []domain.Vulnerability
-		maxSeverity := "LOW"
+		req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(reqBody))
+		if err != nil {
+			continue
+		}
+		req.Header.Set("Content-Type", "application/json")
 
-		for _, v := range res.Vulns {
-			id := v.ID
-			if len(v.Upstream) > 0 {
-				id = v.Upstream[0] + " (" + v.ID + ")"
+		resp, err := a.client.Do(req)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+			continue
+		}
+
+		var batchResp OSVBatchResponse
+		decodeErr := json.NewDecoder(resp.Body).Decode(&batchResp)
+		_ = resp.Body.Close()
+		if decodeErr != nil {
+			continue
+		}
+
+		for resIdx, res := range batchResp.Results {
+			if resIdx >= len(currentChunk) || len(res.Vulns) == 0 {
+				continue
 			}
 
-			summary := v.Summary
-			if summary == "" && v.Details != "" {
-				summary = v.Details
-				if len(summary) > 80 {
-					summary = summary[:80] + "..."
+			pkgIdx := currentChunk[resIdx].pkgIndex
+			var vulns []domain.Vulnerability
+			maxSeverity := "LOW"
+
+			for _, v := range res.Vulns {
+				id := v.ID
+				if len(v.Upstream) > 0 {
+					id = v.Upstream[0] + " (" + v.ID + ")"
 				}
-			}
 
-			sev := strings.ToUpper(v.DatabaseSpecific.Severity)
-			if sev == "" {
-				sev = "HIGH"
-			}
+				summary := v.Summary
+				if summary == "" && v.Details != "" {
+					summary = v.Details
+					if len(summary) > 80 {
+						summary = summary[:80] + "..."
+					}
+				}
 
-			if sev == "CRITICAL" {
-				maxSeverity = "CRITICAL"
-			} else if sev == "HIGH" && maxSeverity != "CRITICAL" {
-				maxSeverity = "HIGH"
-			} else if sev == "MODERATE" && maxSeverity != "CRITICAL" && maxSeverity != "HIGH" {
-				maxSeverity = "MODERATE"
-			}
+				sev := strings.ToUpper(v.DatabaseSpecific.Severity)
+				if sev == "" {
+					sev = "HIGH"
+				}
 
-			// Find fixed version from ranges
-			fixedIn := ""
-			for _, aff := range v.Affected {
-				for _, rng := range aff.Ranges {
-					for _, ev := range rng.Events {
-						if ev.Fixed != "" {
-							fixedIn = ev.Fixed
+				if sev == "CRITICAL" {
+					maxSeverity = "CRITICAL"
+				} else if sev == "HIGH" && maxSeverity != "CRITICAL" {
+					maxSeverity = "HIGH"
+				} else if sev == "MODERATE" && maxSeverity != "CRITICAL" && maxSeverity != "HIGH" {
+					maxSeverity = "MODERATE"
+				}
+
+				// Find fixed version from ranges
+				fixedIn := ""
+				for _, aff := range v.Affected {
+					for _, rng := range aff.Ranges {
+						for _, ev := range rng.Events {
+							if ev.Fixed != "" {
+								fixedIn = ev.Fixed
+								break
+							}
+						}
+						if fixedIn != "" {
 							break
 						}
 					}
@@ -190,39 +228,34 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 						break
 					}
 				}
+
+				isMitigated := true
 				if fixedIn != "" {
-					break
-				}
-			}
-
-			isMitigated := true
-			if fixedIn != "" {
-				// If target version is parsed and less than fixed version, not mitigated
-				tMaj, tMin, tPatch, tOk := domain.ParseVersion(pkgs[i].LatestVersion)
-				fMaj, fMin, fPatch, fOk := domain.ParseVersion(fixedIn)
-				if tOk && fOk {
-					if tMaj < fMaj || (tMaj == fMaj && tMin < fMin) || (tMaj == fMaj && tMin == fMin && tPatch < fPatch) {
-						isMitigated = false
+					tMaj, tMin, tPatch, tOk := domain.ParseVersion(pkgs[pkgIdx].LatestVersion)
+					fMaj, fMin, fPatch, fOk := domain.ParseVersion(fixedIn)
+					if tOk && fOk {
+						if tMaj < fMaj || (tMaj == fMaj && tMin < fMin) || (tMaj == fMaj && tMin == fMin && tPatch < fPatch) {
+							isMitigated = false
+						}
 					}
+				} else {
+					isMitigated = false
 				}
-			} else {
-				// No upstream fix recorded yet = unmitigated zero-day
-				isMitigated = false
+
+				vulns = append(vulns, domain.Vulnerability{
+					ID:          id,
+					Summary:     summary,
+					Severity:    sev,
+					FixedIn:     fixedIn,
+					IsMitigated: isMitigated,
+				})
 			}
 
-			vulns = append(vulns, domain.Vulnerability{
-				ID:          id,
-				Summary:     summary,
-				Severity:    sev,
-				FixedIn:     fixedIn,
-				IsMitigated: isMitigated,
-			})
+			pkgs[pkgIdx].Vulnerabilities = vulns
+			pkgs[pkgIdx].HasVulnerability = true
+			pkgs[pkgIdx].MaxSeverity = maxSeverity
+			pkgs[pkgIdx].Selected = true
 		}
-
-		pkgs[i].Vulnerabilities = vulns
-		pkgs[i].HasVulnerability = true
-		pkgs[i].MaxSeverity = maxSeverity
-		pkgs[i].Selected = true
 	}
 
 	return pkgs

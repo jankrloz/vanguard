@@ -46,6 +46,7 @@ export interface UpgradeEvent {
 
 export interface SystemStatus {
   status: string;
+  version?: string;
   sudo_active: boolean;
   platform: string;
   timestamp: string;

@@ -36,6 +36,9 @@ func DefaultConfig() Config {
 }
 
 func ConfigPath() string {
+	if dir := os.Getenv("VANGUARD_CONFIG_DIR"); dir != "" {
+		return filepath.Join(dir, "config.toml")
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		home = "."

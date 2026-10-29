@@ -5,28 +5,35 @@ import (
 )
 
 func TestConfigTogglePin(t *testing.T) {
-	cfg := DefaultConfig()
+	t.Setenv("VANGUARD_CONFIG_DIR", t.TempDir())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("failed to load initial config: %v", err)
+	}
 
 	if cfg.IsPinned("foo") {
 		t.Fatalf("expected foo not to be pinned")
 	}
 
-	// Toggle pin ON
-	cfg.Packages.Pinned = append(cfg.Packages.Pinned, "foo")
-	if !cfg.IsPinned("foo") {
-		t.Fatalf("expected foo to be pinned")
+	// Toggle pin ON via real TogglePin method
+	pinned, err := cfg.TogglePin("foo")
+	if err != nil || !pinned {
+		t.Fatalf("expected foo to be pinned: %v, pinned=%v", err, pinned)
 	}
 
-	// Filter out
-	var updated []string
-	for _, p := range cfg.Packages.Pinned {
-		if p != "foo" {
-			updated = append(updated, p)
-		}
+	// Reload from disk to verify persistence
+	reloaded, err := Load()
+	if err != nil {
+		t.Fatalf("failed to reload config: %v", err)
 	}
-	cfg.Packages.Pinned = updated
+	if !reloaded.IsPinned("foo") {
+		t.Fatalf("expected foo to be persisted as pinned")
+	}
 
-	if cfg.IsPinned("foo") {
-		t.Fatalf("expected foo not to be pinned")
+	// Toggle pin OFF
+	pinned, err = reloaded.TogglePin("foo")
+	if err != nil || pinned {
+		t.Fatalf("expected foo to be unpinned: %v, pinned=%v", err, pinned)
 	}
 }

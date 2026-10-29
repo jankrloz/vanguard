@@ -19,6 +19,9 @@ type Entry struct {
 }
 
 func LogPath() string {
+	if dir := os.Getenv("VANGUARD_STATE_DIR"); dir != "" {
+		return filepath.Join(dir, "history.jsonl")
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		home = "."
