@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jankrloz/vanguard/internal/auth"
+	"github.com/jankrloz/vanguard/internal/config"
 	"github.com/jankrloz/vanguard/internal/domain"
 	"github.com/jankrloz/vanguard/internal/executor"
 	"github.com/jankrloz/vanguard/internal/history"
@@ -112,6 +113,7 @@ func runApply(ctx context.Context, args []string) int {
 	fmt.Println("  ──────────────────────────────────────")
 
 	_ = auth.EnsureSudo()
+	_ = config.EnsureMPMConfig()
 
 	s := scanner.New()
 	res, err := s.Scan(ctx)
@@ -297,6 +299,7 @@ func runSweep(ctx context.Context) int {
 	fmt.Println("  ─────────────────────────────────────────────────")
 
 	_ = auth.EnsureSudo()
+	_ = config.EnsureMPMConfig()
 
 	execEngine := executor.New()
 	err := execEngine.ExecuteTopgrade(ctx, func(ev domain.UpgradeEvent) {

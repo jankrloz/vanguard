@@ -15,6 +15,7 @@ import (
 
 	"github.com/jankrloz/vanguard"
 	"github.com/jankrloz/vanguard/internal/auth"
+	"github.com/jankrloz/vanguard/internal/config"
 	"github.com/jankrloz/vanguard/internal/executor"
 	"github.com/jankrloz/vanguard/internal/scanner"
 	"github.com/jankrloz/vanguard/internal/server"
@@ -88,6 +89,7 @@ func runDashboard(ctx context.Context) {
 	fmt.Println("  ────────────────────────────────────────────────────────")
 
 	// 1. Privilege pre-flight & Keepalive
+	_ = config.EnsureMPMConfig()
 	if !*noSudo {
 		fmt.Print("  [1/3] Initializing privilege keepalive... ")
 		if err := auth.EnsureSudo(); err != nil {

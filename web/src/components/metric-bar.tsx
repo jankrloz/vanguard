@@ -7,6 +7,7 @@ interface MetricBarProps {
   selectedCount: number;
   activeFilter: FilterType;
   isScanning: boolean;
+  isUpgrading?: boolean;
   onFilterChange: (filter: FilterType) => void;
 }
 
@@ -15,9 +16,11 @@ export const MetricBar: FC<MetricBarProps> = ({
   selectedCount,
   activeFilter,
   isScanning,
+  isUpgrading = false,
   onFilterChange,
 }) => {
   const handleCardClick = (target: FilterType) => {
+    if (isUpgrading) return;
     if (activeFilter === target && target !== "all") {
       onFilterChange("all");
     } else {

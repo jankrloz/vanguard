@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -110,4 +112,42 @@ func (c *Config) IsPinned(pkgID string) bool {
 		}
 	}
 	return false
+}
+
+// EnsureMPMConfig primes MPM's configuration on macOS/Linux so that
+// managers requiring elevation (such as system Ruby gems in /Library/Ruby)
+// have sudo escalation enabled, preventing FilePermissionError aborts.
+func EnsureMPMConfig() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	var dir string
+	if runtime.GOOS == "darwin" {
+		dir = filepath.Join(home, "Library", "Application Support", "mpm")
+	} else {
+		dir = filepath.Join(home, ".config", "mpm")
+	}
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	cfgFile := filepath.Join(dir, "config.toml")
+	data, err := os.ReadFile(cfgFile)
+	content := string(data)
+	if err == nil && strings.Contains(content, "[mpm.overrides.gem]") {
+		return nil
+	}
+
+	f, err := os.OpenFile(cfgFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	snippet := "\n[mpm.overrides.gem]\nsudo = true\n"
+	_, err = f.WriteString(snippet)
+	return err
 }

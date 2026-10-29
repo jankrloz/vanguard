@@ -24,6 +24,15 @@ func New() *Executor {
 	return &Executor{}
 }
 
+func isPrivilegedManager(mgr string) bool {
+	switch strings.ToLower(mgr) {
+	case "gem", "apt", "aptitude", "dnf", "dnf5", "pacman", "zypper", "apk", "emerge", "pkg":
+		return true
+	default:
+		return false
+	}
+}
+
 // ExecuteUpgrades groups packages by manager and runs upgrades while streaming events.
 func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, onEvent EventCallback) error {
 	e.mu.Lock()
@@ -62,14 +71,16 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 			Message: fmt.Sprintf("Upgrading [%s] packages: %s", mgr, strings.Join(names, ", ")),
 		})
 
-		var cmd *exec.Cmd
-		if mgr == "" || mgr == "all" {
-			args := append([]string{"upgrade"}, names...)
-			cmd = exec.CommandContext(ctx, "mpm", args...)
-		} else {
-			args := append([]string{"--" + mgr, "upgrade"}, names...)
-			cmd = exec.CommandContext(ctx, "mpm", args...)
+		var args []string
+		if mgr != "" && mgr != "all" {
+			args = append(args, "--"+mgr)
+			if isPrivilegedManager(mgr) {
+				args = append(args, "--sudo")
+			}
 		}
+		args = append(args, "upgrade")
+		args = append(args, names...)
+		cmd := exec.CommandContext(ctx, "mpm", args...)
 
 		err := e.runStreamingCommand(cmd, onEvent)
 		status := "ok"
@@ -224,6 +235,12 @@ func (e *Executor) runStreamingCommand(cmd *exec.Cmd, onEvent EventCallback) err
 				Type:    "log",
 				Message: line,
 			})
+			if strings.Contains(line, "FilePermissionError") || strings.Contains(line, "sudo: a password is required") {
+				onEvent(domain.UpgradeEvent{
+					Type:    "log",
+					Message: "⚠️ Sudo authentication required: prime credentials via 'vg' terminal command or 'sudo -v'",
+				})
+			}
 		}
 	}
 

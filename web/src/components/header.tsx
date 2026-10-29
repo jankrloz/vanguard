@@ -10,6 +10,7 @@ interface HeaderProps {
   isUpgrading: boolean;
   onScan: () => void;
   onUpgrade: () => void;
+  onOpenReview?: () => void;
   onClean: () => void;
   onTopgrade: () => void;
   onOpenHistory: () => void;
@@ -23,6 +24,7 @@ export const Header: FC<HeaderProps> = ({
   isUpgrading,
   onScan,
   onUpgrade,
+  onOpenReview,
   onClean,
   onTopgrade,
   onOpenHistory,
@@ -121,6 +123,18 @@ export const Header: FC<HeaderProps> = ({
               <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? "animate-spin text-zinc-400" : ""}`} />
               <span>{isScanning ? "Scanning..." : "Rescan"}</span>
             </button>
+
+            {selectedCount > 0 && onOpenReview && (
+              <button
+                type="button"
+                onClick={onOpenReview}
+                disabled={isUpgrading}
+                title="Review queued packages categorized by criticality"
+                className="flex items-center gap-1.5 text-xs font-mono text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <span>Review Queue ({selectedCount})</span>
+              </button>
+            )}
 
             <button
               type="button"

@@ -34,6 +34,7 @@ interface PackageTableProps {
   onSelectOnlyFiltered: (filteredIds: string[]) => void;
   onDeselectFiltered: (filteredIds: string[]) => void;
   onToggleManagerSelection: (manager: string) => void;
+  onOpenReview?: () => void;
 }
 
 const ScanningSkeleton: FC = () => (
@@ -88,6 +89,7 @@ export const PackageTable: FC<PackageTableProps> = ({
   onSelectOnlyFiltered,
   onDeselectFiltered,
   onToggleManagerSelection,
+  onOpenReview,
 }) => {
   const [search, setSearch] = useState("");
   const [selectedManagers, setSelectedManagers] = useState<string[]>([]);
@@ -504,6 +506,17 @@ export const PackageTable: FC<PackageTableProps> = ({
               >
                 Clear
               </button>
+              {onOpenReview && filteredSelected.length > 0 && (
+                <button
+                  type="button"
+                  disabled={isUpgrading}
+                  onClick={onOpenReview}
+                  className="text-[11px] font-mono text-zinc-200 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium disabled:opacity-40 ml-1"
+                  title="Open review panel for selected packages"
+                >
+                  Review Queue ({filteredSelected.length})
+                </button>
+              )}
             </>
           ) : (
             <>
@@ -531,6 +544,17 @@ export const PackageTable: FC<PackageTableProps> = ({
               >
                 Clear
               </button>
+              {onOpenReview && packages.some((p) => p.selected && !p.pinned) && (
+                <button
+                  type="button"
+                  disabled={isUpgrading}
+                  onClick={onOpenReview}
+                  className="text-[11px] font-mono text-zinc-200 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium disabled:opacity-40 ml-1"
+                  title="Open review panel for selected packages"
+                >
+                  Review Queue
+                </button>
+              )}
             </>
           )}
         </div>
@@ -548,7 +572,30 @@ export const PackageTable: FC<PackageTableProps> = ({
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 relative">
+          {/* Active Upgrade Lockdown Overlay */}
+          {isUpgrading && (
+            <div className="absolute inset-0 bg-zinc-950/70 backdrop-blur-[1.5px] z-30 rounded-lg flex flex-col items-center justify-start pt-16 pointer-events-auto">
+              <div className="bg-zinc-900 border border-zinc-700/80 rounded-xl p-5 shadow-2xl flex flex-col items-center gap-3 max-w-md text-center animate-in fade-in zoom-in-95">
+                <div className="p-3 bg-blue-950/80 border border-blue-800/80 rounded-full">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold font-mono text-zinc-100">
+                    Executing Package Upgrades
+                  </h4>
+                  <p className="text-xs text-zinc-400 mt-1 font-mono">
+                    {activeManager
+                      ? `Active manager: [${activeManager}] — logs streaming in drawer`
+                      : "Dispatched upgrade queue to system package managers..."}
+                  </p>
+                </div>
+                <span className="text-[11px] font-mono text-zinc-400 bg-zinc-950 px-3 py-1 rounded-md border border-zinc-800/80">
+                  Interface locked — package selection disabled during execution
+                </span>
+              </div>
+            </div>
+          )}
           {grouped.map(([manager, items]) => {
             const isManagerActive = isUpgrading && activeManager === manager;
             const managerOutcome = completedManagers[manager];
