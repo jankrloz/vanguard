@@ -14,6 +14,7 @@ import {
   MinusSquare,
   Loader2,
   CheckCircle2,
+  ArrowUpCircle,
 } from "lucide-react";
 import type { Package, Vulnerability, FilterType } from "../lib/types";
 
@@ -31,6 +32,9 @@ interface PackageTableProps {
   onSelectSecurity: () => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
+  onSelectOnlyFiltered: (filteredIds: string[]) => void;
+  onDeselectFiltered: (filteredIds: string[]) => void;
+  onUpgradeSubset: (ids: string[]) => void;
   onToggleManagerSelection: (manager: string) => void;
 }
 
@@ -85,6 +89,9 @@ export const PackageTable: FC<PackageTableProps> = ({
   onSelectSecurity,
   onSelectAll,
   onDeselectAll,
+  onSelectOnlyFiltered,
+  onDeselectFiltered,
+  onUpgradeSubset,
   onToggleManagerSelection,
 }) => {
   const [search, setSearch] = useState("");
@@ -185,6 +192,27 @@ export const PackageTable: FC<PackageTableProps> = ({
     e.stopPropagation();
     setExpandedVulns((prev) => ({ ...prev, [id]: !prev[id] }));
   };
+
+  const isFilterActive =
+    activeFilter !== "all" || search.trim() !== "" || selectedManager !== "all";
+
+  const filteredSelectable = useMemo(() => {
+    return filteredPackages.filter((p) => !p.pinned);
+  }, [filteredPackages]);
+
+  const filteredSelected = useMemo(() => {
+    return filteredPackages.filter((p) => p.selected && !p.pinned);
+  }, [filteredPackages]);
+
+  const filterLabel = useMemo(() => {
+    if (activeFilter === "security") return "CVE Vulnerabilities";
+    if (activeFilter === "safe") return "Safe Updates";
+    if (activeFilter === "major") return "Major Breaking Updates";
+    if (activeFilter === "pinned") return "Pinned Packages";
+    if (selectedManager !== "all") return `Manager: ${selectedManager}`;
+    if (search.trim() !== "") return `Search: "${search}"`;
+    return "";
+  }, [activeFilter, selectedManager, search]);
 
   // If initial scanning and no packages loaded yet, render skeleton
   if (isScanning && packages.length === 0) {
@@ -372,6 +400,54 @@ export const PackageTable: FC<PackageTableProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Contextual Filter Scope & Action Bar */}
+      {isFilterActive && filteredPackages.length > 0 && (
+        <div className="bg-zinc-900/90 border border-zinc-800 rounded-lg p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono shadow-sm">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-zinc-500">Filtered:</span>
+            <span className="text-zinc-200 font-semibold bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/60">
+              {filterLabel}
+            </span>
+            <span className="text-zinc-400">
+              ({filteredSelected.length} of {filteredPackages.length} selected)
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              disabled={isUpgrading}
+              onClick={() => onSelectOnlyFiltered(filteredPackages.map((p) => p.id))}
+              className="text-[11px] px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer font-medium disabled:opacity-40"
+              title="Deselect all background packages and select only these visible items"
+            >
+              Select Only Visible ({filteredSelectable.length})
+            </button>
+
+            <button
+              type="button"
+              disabled={isUpgrading || filteredSelected.length === 0}
+              onClick={() => onDeselectFiltered(filteredPackages.map((p) => p.id))}
+              className="text-[11px] px-2.5 py-1 rounded bg-zinc-950 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Clear Visible
+            </button>
+
+            {filteredSelected.length > 0 && (
+              <button
+                type="button"
+                disabled={isUpgrading}
+                onClick={() => onUpgradeSubset(filteredSelected.map((p) => p.id))}
+                className="text-[11px] px-3 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
+              >
+                <ArrowUpCircle className="w-3.5 h-3.5" />
+                <span>Upgrade Filtered ({filteredSelected.length})</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Package Groups or Empty State */}
       {grouped.length === 0 ? (

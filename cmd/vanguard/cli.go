@@ -288,8 +288,13 @@ func runMonitor(ctx context.Context, args []string) int {
 }
 
 func runSweep(ctx context.Context) int {
-	fmt.Println("\n  ▲ VANGUARD — Topgrade System Sweep")
-	fmt.Println("  ───────────────────────────────────")
+	fmt.Println("\n  ▲ VANGUARD — Deep System Maintenance (Topgrade)")
+	fmt.Println("  Running system-wide sweep across:")
+	fmt.Println("  • Git repositories, submodules, and worktrees")
+	fmt.Println("  • Firmware, language toolchains (rustup, pyenv, nvm)")
+	fmt.Println("  • Shell frameworks, editor extensions, containers")
+	fmt.Println("  • macOS App Store & system caches")
+	fmt.Println("  ─────────────────────────────────────────────────")
 
 	_ = auth.EnsureSudo()
 

@@ -32,7 +32,7 @@ Commands:
   check      Scan packages and print security status table (exits 1 on urgent CVEs)
   apply      Execute non-interactive CLI package upgrades directly in terminal
   history    View local persistent audit log (~/.local/state/vanguard/history.jsonl)
-  sweep      Run deep system-wide sweep via Topgrade
+  sweep      Run deep system-wide maintenance sweep via Topgrade (git, toolchains, firmware)
   monitor    Run background security monitor daemon with macOS alerts
   dashboard  Launch interactive web control dashboard (default)
   version    Print Vanguard version and platform information

@@ -48,10 +48,14 @@ export function App() {
 
       if (sysStatus) setStatus(sysStatus);
 
-      // Normalize package selection: preselect safe OR vulnerable packages
+      // Smart selection: prioritize security fixes if present.
+      // Never blindly select 1,600+ packages on initial scan.
+      const hasSecurity = (scanResult.packages || []).some((p) => p.has_vulnerability);
       const pkgs: Package[] = (scanResult.packages || []).map((p) => ({
         ...p,
-        selected: Boolean((p.safe || p.has_vulnerability) && !p.pinned),
+        selected: hasSecurity
+          ? Boolean(p.has_vulnerability && !p.pinned)
+          : Boolean(p.safe && !p.pinned),
       }));
 
       setPackages(pkgs);
@@ -159,6 +163,47 @@ export function App() {
   const handleDeselectAll = () => {
     if (isUpgrading) return;
     setPackages((prev) => prev.map((p) => ({ ...p, selected: false })));
+  };
+
+  const handleSelectOnlyFiltered = (filteredIds: string[]) => {
+    if (isUpgrading) return;
+    const targetSet = new Set(filteredIds);
+    setPackages((prev) =>
+      prev.map((p) => ({
+        ...p,
+        selected: targetSet.has(p.id) && !p.pinned,
+      }))
+    );
+  };
+
+  const handleDeselectFiltered = (filteredIds: string[]) => {
+    if (isUpgrading) return;
+    const targetSet = new Set(filteredIds);
+    setPackages((prev) =>
+      prev.map((p) => (targetSet.has(p.id) ? { ...p, selected: false } : p))
+    );
+  };
+
+  const handleUpgradeSubset = async (ids: string[]) => {
+    const validIds = ids.filter((id) => {
+      const p = packages.find((pkg) => pkg.id === id);
+      return p && !p.pinned;
+    });
+    if (validIds.length === 0 || isUpgrading || isScanning) return;
+
+    setIsUpgrading(true);
+    setIsLogOpen(true);
+    setActiveManager(null);
+    setCompletedManagers({});
+    setEvents([]);
+
+    try {
+      await triggerUpgrade(validIds);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Upgrade request failed";
+      setError(msg);
+      setIsUpgrading(false);
+    }
   };
 
   const handleUpgrade = async () => {
@@ -307,6 +352,9 @@ export function App() {
           onSelectSecurity={handleSelectSecurity}
           onSelectAll={handleSelectAll}
           onDeselectAll={handleDeselectAll}
+          onSelectOnlyFiltered={handleSelectOnlyFiltered}
+          onDeselectFiltered={handleDeselectFiltered}
+          onUpgradeSubset={handleUpgradeSubset}
           onToggleManagerSelection={handleToggleManagerSelection}
         />
       </main>

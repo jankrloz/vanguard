@@ -107,8 +107,8 @@ vg apply --all -y
 # View persistent upgrade audit history
 vg history --limit 30
 
-# Run deep system-wide sweep via Topgrade
-vg sweep
+# Run deep system-wide maintenance sweep via Topgrade (Git repos, toolchains, firmware, system caches)
+vg sweep   # or: vg topgrade
 
 # Run background security monitor with macOS notifications
 vg monitor --interval 1h

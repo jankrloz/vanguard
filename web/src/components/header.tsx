@@ -90,11 +90,11 @@ export const Header: FC<HeaderProps> = ({
               type="button"
               onClick={onTopgrade}
               disabled={isUpgrading || isScanning}
-              title="Run deep system-wide sweep via Topgrade"
+              title="Run deep system-wide maintenance sweep via Topgrade (Git repos, language toolchains, VS Code extensions, firmware, and macOS system caches)"
               className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-amber-300 hover:bg-zinc-800/80 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Sweep</span>
+              <span className="hidden sm:inline">Topgrade Sweep</span>
             </button>
 
             <button
@@ -138,7 +138,13 @@ export const Header: FC<HeaderProps> = ({
               ) : (
                 <ArrowUpCircle className="w-4 h-4" />
               )}
-              <span>{isUpgrading ? "Upgrading..." : `Upgrade (${selectedCount})`}</span>
+              <span>
+                {isUpgrading
+                  ? "Upgrading..."
+                  : securityCount > 0 && selectedCount === securityCount
+                  ? `Upgrade (${selectedCount} CVEs)`
+                  : `Upgrade (${selectedCount})`}
+              </span>
               {selectedCount > 0 && !isUpgrading && !isScanning && (
                 <kbd className="hidden sm:inline text-[10px] font-mono bg-zinc-300 text-zinc-800 px-1 py-0.2 rounded font-normal">
                   ⌘↵
