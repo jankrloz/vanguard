@@ -7,163 +7,152 @@
 <p align="center">
   <a href="https://github.com/jankrloz/vanguard/releases"><img src="https://img.shields.io/github/v/release/jankrloz/vanguard?style=flat-square&color=00F0FF&label=Release" alt="Release" /></a>
   <a href="https://github.com/jankrloz/vanguard/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-00FF9D?style=flat-square" alt="License" /></a>
-  <img src="https://img.shields.io/badge/Architecture-Clean%20%2F%20Hexagonal-FFB800?style=flat-square" alt="Architecture" />
-  <img src="https://img.shields.io/badge/Security-OSV.dev%20%26%20CVE-FF2E93?style=flat-square" alt="Security" />
-  <img src="https://img.shields.io/badge/CLI-Lip%20Gloss%20%26%20Charm-00F0FF?style=flat-square" alt="CLI Stack" />
+  <img src="https://img.shields.io/badge/Security-OSV.dev%20%C2%B7%20Trivy%20%C2%B7%20osv--scanner-FF2E93?style=flat-square" alt="Security Intelligence" />
+  <img src="https://img.shields.io/badge/Ecosystems-35%2B%20Package%20Managers-00F0FF?style=flat-square" alt="Package Managers" />
 </p>
 
-> **Vanguard is an interactive vulnerability shield and package upgrade orchestrator for macOS and Linux.**  
-> Built with Go, Lip Gloss, React 19, and Tailwind CSS v4. Prioritizes urgent CVE/zero-day patches across 60+ package ecosystems, enforces strict SemVer breaking-change guards, protects Unix ownership boundaries, and streams real-time execution logs.
+> **Vanguard is a unified vulnerability shield and package update orchestrator for macOS and Linux.**  
+> Scans 35+ system, language, and application package managers, correlates outdated dependencies against authoritative vulnerability databases and native security scanners, classifies updates by severity (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`) and SemVer risk (`Safe Minor/Patch` vs. `Major Breaking`), and executes upgrades through an interactive Web Dashboard or headless CLI.
 
 ---
 
-## ⚡ Key Capabilities
+## Key Capabilities
 
-- **🚨 Fine-Grained CVE & Zero-Day Intelligence:** Direct batch querying against **OSV.dev** (Open Source Vulnerabilities) triaging NVD, GitHub Advisories (GHSA), RustSec, and PyPA databases with CVSS 3.1 score weighting.
-- **🚦 SemVer Breaking-Change Guard:**
-  - **Critical & CVE Fixes:** Pre-selected with pulsing threat badges and mitigation indicators.
-  - **Safe Minor & Patch Updates:** Auto-checked for safe 1-click execution.
-  - **Major Releases:** Safely unselected by default with breaking-change warnings.
-- **🛡️ Strict Unix Ownership & Privilege Isolation:**
-  - Prevents root pollution: User-level ecosystems (`brew`, `npm`, `cargo`, `pipx`, `mise`, `~/.rbenv`) are strictly blocked from running under `sudo`.
-  - Non-interactive Touch ID & macOS Native Dialogs: Primes credentials via `/dev/tty` or macOS native `osascript` authorization (`"Vanguard is trying to execute privileged package updates."`) on demand only when system directories (like `/Library/Ruby/Gems`) require escalation.
-- **🎨 Brandkit & CLI Charm Stack:** Powered by **Charm Lip Gloss** and **Bubbles** with dynamic progress spinners, rounded table cards, and high-visibility risk badges in both interactive TUI and scriptable headless modes (`-no-web`).
-- **🗂️ In-Place Queue Filter:** Zero modals — reviewing your upgrade queue operates directly within the main table via the `Queued (N)` filter tab with contextual actions (`Clear Queue`, `Upgrade Queued`).
-- **📦 Single Self-Contained Binary:** Go `embed.FS` packs all compiled HTML/JS/CSS assets inside an 11MB standalone binary with zero external runtime dependencies.
+- **Authoritative Multi-Engine Vulnerability Detection**
+  - Queries **OSV.dev** and **GitHub Security Advisories (GHSA)** in real time for every outdated package.
+  - Synthesizes CycloneDX SBOM scans through **Google `osv-scanner`** and **Aqua `trivy`**.
+  - Executes native package manager security audits (**`npm audit`**, **`pip-audit`**) and deduplicates CVE/GHSA identifiers across sources.
+  - Displays inline vulnerability summaries, upstream advisory links, and exact remediation targets (`Fixed >= X.Y.Z` or `Zero-Day`).
 
----
+- **Severity & SemVer Risk Triage**
+  - **Vulnerability Advisories (`CRITICAL` / `HIGH` / `MEDIUM` / `LOW`):** Ranked first by CVSS v3.1 score and vector severity so urgent security patches are never buried under routine updates.
+  - **Safe Updates (`Minor` & `Patch`):** Non-breaking SemVer updates pre-selected for one-click or automated batch execution.
+  - **Major Breaking Updates (`Major`):** Isolated and unselected by default to prevent accidental breaking upgrades across toolchains.
+  - **Package Pinning:** Pin or unpin specific packages to hold versions back while continuing to upgrade the rest of your environment.
 
-## 🎨 Brand Identity & Design Tokens
+- **Interactive Web Dashboard & Headless CLI**
+  - **Web Dashboard (`vg`):** Filter by `All Updates`, `Vulnerabilities`, `Safe (Minor/Patch)`, `Major Breaking`, `Pinned`, or `Queued`, inspect CVE details and package descriptions, stream live upgrade stdout/stderr logs, and trigger system-wide maintenance sweeps.
+  - **Headless CLI (`vg check`, `vg apply`, `vg sweep`, `vg history`, `vg monitor`):** Built for terminal workflows, CI/CD security gates (exits non-zero when vulnerabilities are detected), and scheduled background monitoring.
 
-Vanguard adheres to a **stealth cybersecurity aesthetic** engineered for high signal-to-noise ratio in terminal and browser environments:
-
-| Token | Hex | Role | Visual Usage |
-|---|---|---|---|
-| **Vanguard Cyan** | `#00F0FF` | Primary Identity | Prism shield emblem, active filters, CLI focus, spinners |
-| **Threat Rose** | `#FF2E93` | Critical / Zero-Day | CVSS 9.0+ CVEs, unmitigated exploits, urgent action triggers |
-| **High Orange** | `#FF8A00` | High Severity | CVSS 7.0–8.9 security advisories |
-| **Warning Amber** | `#FFB800` | Major Breaking | SemVer major version jumps, breaking API changes |
-| **Safe Emerald** | `#00FF9D` | Safe Updates | Verified minor & patch releases, clean security checks |
-| **Obsidian Canvas** | `#09090B` | Deep Background | Quiet chrome UI, terminal cards, low visual fatigue |
+- **35+ Supported Package Ecosystems**
+  - Unifies **Homebrew** (`brew` & `cask`), **Node.js** (`npm`, `pnpm`, `yarn`, `bun`), **Python** (`pip`, `pipx`, `uv`, `uvx`, `poetry`), **Rust** (`cargo`, `rustup`), **Go**, **RubyGems** (`gem`), **Google Cloud SDK** (`gcloud`), **PHP** (`composer`), **Mac App Store** (`mas`), **APT / APK / DNF**, and full-system **Topgrade** sweeps.
 
 ---
 
-## 🛡️ Vulnerability Severity Matrix
-
-Not all CVEs carry the same risk. Vanguard surfaces upstream CVSS base scores and categorizes advisories into actionable risk tiers:
+## Vulnerability Severity & Update Classification
 
 ```
-┌──────────┬───────────┬────────────────────────────────────────────────────────┐
-│ Severity │ CVSS Base │ Action & Triage Policy                                 │
-├──────────┼───────────┼────────────────────────────────────────────────────────┤
-│ CRITICAL │ 9.0–10.0  │ Remotely exploitable without authentication (RCE).     │
-│          │           │ Auto-selected, urgent priority #1.                     │
-├──────────┼───────────┼────────────────────────────────────────────────────────┤
-│ HIGH     │ 7.0–8.9   │ Privilege escalation, DoS, auth bypass.               │
-│          │           │ Auto-selected with high-visibility warning badge.       │
-├──────────┼───────────┼────────────────────────────────────────────────────────┤
-│ MEDIUM   │ 4.0–6.9   │ Requires specific conditions, local access, or CSRF.   │
-│          │           │ Tagged with advisory detail link for developer review. │
-├──────────┼───────────┼────────────────────────────────────────────────────────┤
-│ LOW      │ 0.1–3.9   │ Minimal impact or theoretical edge cases.              │
-│          │           │ Logged in security intelligence drawer.                │
-└──────────┴───────────┴────────────────────────────────────────────────────────┘
+┌──────────────────────┬───────────────────────┬──────────────────────────────────────────────────────────┐
+│ Classification       │ Criteria              │ Triage & Default Behavior                                │
+├──────────────────────┼───────────────────────┼──────────────────────────────────────────────────────────┤
+│ CRITICAL             │ CVSS 9.0 – 10.0       │ Ranked #1 · Auto-queued · Blocks `vg check` (exit 1)     │
+│ HIGH                 │ CVSS 7.0 – 8.9        │ Ranked #2 · Auto-queued · Blocks `vg check` (exit 1)     │
+│ MEDIUM               │ CVSS 4.0 – 6.9        │ Ranked #3 · Auto-queued · Inline advisory summary        │
+│ LOW                  │ CVSS 0.1 – 3.9        │ Ranked #4 · Inline advisory summary & remediation version│
+├──────────────────────┼───────────────────────┼──────────────────────────────────────────────────────────┤
+│ SAFE (MINOR / PATCH) │ SemVer < next major   │ Pre-selected for safe batch execution                    │
+│ MAJOR BREAKING       │ SemVer major bump     │ Unselected by default to guard against breaking changes  │
+│ PINNED               │ User-locked package   │ Excluded from upgrades until explicitly unpinned         │
+└──────────────────────┴───────────────────────┴──────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 💡 What is the "CPAN" Package Manager?
+## Installation
 
-When scanning macOS systems, developers often see **1,600+ or 2,100+ available updates** attributed to `cpan`:
+### Homebrew (macOS & Linux)
 
-- **What is CPAN?** CPAN is the *Comprehensive Perl Archive Network* — Perl's official package repository (analogous to npm for Node or PyPI for Python).
-- **Why are thousands of updates listed on macOS?**  
-  macOS ships with a legacy vendor Perl installation (`/usr/bin/perl`, Perl 5.34). This system installation bundles hundreds of "dual-lived" core Perl modules in `/System/Library/Perl`. When package scanners query CPAN, CPAN reports every newer standalone release published upstream since Apple froze the macOS Perl vendor bundle.
-- **Why upgrading them is dangerous:**  
-  Updating system Perl modules requires overriding macOS System Integrity Protection (SIP) or `/Library/Perl`, which risks breaking internal macOS operating system scripts.
-- **Vanguard's Solution:**  
-  Vanguard **excludes `cpan` by default** (`--no-cpan` and `ignored_managers = ["cpan"]`), eliminating 2,100+ irrelevant items and focusing your scan on real developer toolchains (`brew`, `npm`, `pip`, `cargo`, `gem`, `pnpm`, `uv`).
-
----
-
-## 🏗️ Architecture
-
-```
-┌───────────────────────────────────────────────────────────────────────────┐
-│                    Layer 3: Vanguard (Shield & UX)                        │
-│   OSV.dev CVE Triage • SemVer Safety Guard • Privilege Keepalive (TID)    │
-│    Lip Gloss / Charm CLI • Ephemeral Web Dashboard • SSE Real-Time Logs   │
-└─────────────────────────────────────▲─────────────────────────────────────┘
-                                      │
-┌─────────────────────────────────────┴─────────────────────────────────────┐
-│                 Layer 2: MPM (Meta Package Manager)                       │
-│    Granular Multi-Ecosystem Abstraction & Inspection (60+ Managers)       │
-└─────────────────────────────────────▲─────────────────────────────────────┘
-                                      │ (delegation & sinkhole fallback)
-┌─────────────────────────────────────┴─────────────────────────────────────┐
-│               Layer 1: Topgrade & Native Package Managers                 │
-│      Topgrade (System sweep, Rustup, Vim plugins, OS firmware)            │
-│      Homebrew (Formulae & Casks) • mise • uv • pnpm • npm • mas • gcloud   │
-└───────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🚀 Installation & Usage
-
-### Build and Install via Taskfile
 ```bash
-git clone https://github.com/jankrloz/vanguard.git ~/dev/personal/vanguard
-cd ~/dev/personal/vanguard
+brew install jankrloz/tap/vanguard
+```
 
+Installing via Homebrew automatically provisions `vanguard` (`vg` and `up` aliases) alongside its companion security and package orchestration tools (`meta-package-manager`, `topgrade`, `osv-scanner`, and `trivy`).
+
+### Build from Source
+
+```bash
+git clone https://github.com/jankrloz/vanguard.git
+cd vanguard
 task build
 task install
 ```
 
-### CLI Commands (`vg` / `up`)
+---
+
+## Usage & CLI Reference
+
+### Launch the Web Dashboard
 
 ```bash
-# Launch interactive web dashboard (default)
+# Start the local server and open the Web Dashboard in your browser
 vg
-vg dashboard
 
-# Headless check with Lip Gloss styled output (exits 1 if critical CVEs found)
+# Run the server in headless background mode without opening a browser window
+vg -no-web -port 9099
+```
+
+### Headless Vulnerability & Update Audit (`vg check`)
+
+```bash
+# Scan all active package managers and print categorized vulnerability & update report
 vg check
+
+# Show only packages with active security vulnerabilities (exits 1 if found)
 vg check --security-only
-vg check --manager cask
+
+# Filter by a specific package manager (e.g. brew, cask, npm, pnpm, pip, uv, gem)
+vg check --manager brew
+
+# Limit displayed rows per section
 vg check --limit 20
+```
 
-# Non-interactive upgrade execution directly in terminal
-vg apply --yes
-vg apply --security-only -y
-vg apply --manager npm -y
+### Non-Interactive Terminal Upgrades (`vg apply`)
+
+```bash
+# Upgrade all safe (minor/patch) and security-fix packages interactively
+vg apply
+
+# Auto-confirm and apply only security vulnerability fixes
+vg apply --security-only --yes
+
+# Upgrade packages for a single package manager
+vg apply --manager pnpm -y
+
+# Upgrade all outdated packages, including major version releases
 vg apply --all -y
+```
 
-# View persistent upgrade audit history
+### System Sweep, Audit History & Continuous Monitoring
+
+```bash
+# Run a full-system Topgrade maintenance sweep (git repos, toolchains, firmware, caches)
+vg sweep
+
+# Inspect the persistent upgrade audit trail
 vg history --limit 30
 
-# System-wide maintenance sweep via Topgrade (Git repos, toolchains, caches)
-vg sweep   # or: vg topgrade
+# Run a background vulnerability monitor with desktop notifications
+vg monitor --interval 1h
 ```
 
 ### Dashboard Flags
 
 | Flag | Default | Description |
 |---|---|---|
-| `-port <int>` | `9099` | Local HTTP server port (uses random free port if taken) |
-| `-no-web` | `false` | Run headless daemon without opening browser (`-no-open` supported as alias) |
-| `-no-sudo` | `false` | Skip privilege pre-flight priming |
-| `-dev` | `false` | Reverse-proxy to Vite HMR server (`http://127.0.0.1:5173`) |
+| `-port <int>` | `9099` | Local HTTP server port (falls back to an available port if busy) |
+| `-no-web` | `false` | Run the local server in headless mode without launching a browser |
+| `-no-sudo` | `false` | Skip privilege pre-flight checks on startup |
 
 ---
 
-## ⚙️ Configuration & Audit Trail
+## Configuration & Audit Trail
 
-- **Configuration:** `~/.config/vanguard/config.toml` (manages pinned packages and ignored managers like `cpan`).
-- **Audit History:** `~/.local/state/vanguard/history.jsonl` (persists timestamp, package ID, manager, version diff, and execution outcome).
+- **Configuration (`~/.config/vanguard/config.json`):** Stores pinned package identifiers and ignored package managers.
+- **Audit Log (`~/.local/state/vanguard/history.jsonl`):** Records every package upgrade and system sweep with timestamp, package manager, version transition (`from` → `to`), and execution status.
 
 ---
 
-## 📜 License
+## License
 
 MIT © Juan Carlos Navarrete Gordillo

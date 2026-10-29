@@ -280,20 +280,23 @@ func runApply(ctx context.Context, args []string) int {
 
 	fmt.Printf("\n  %s\n", ui.StyleCyanBold.Render("Executing upgrades..."))
 	execEngine := executor.New()
+	totalCandidates := len(candidates)
+	completedCount := 0
 
 	err = execEngine.ExecuteUpgrades(ctx, candidates, func(ev domain.UpgradeEvent) {
 		switch ev.Type {
 		case "start":
 			fmt.Printf("  %s %s\n", ui.StyleCyanBold.Render("▶"), ev.Message)
 		case "package_start":
-			fmt.Printf("\n  %s %s\n", ui.StyleCyanBold.Render("==>"), ui.StyleWhiteBold.Render(ev.Message))
+			fmt.Printf("\n  %s %s  %s\n", ui.StyleCyanBold.Render("==>"), ui.StyleWhiteBold.Render(ev.Message), ui.RenderProgress(completedCount, totalCandidates))
 		case "log":
 			fmt.Printf("    %s\n", ui.StyleZinc.Render(ev.Message))
 		case "package_done":
+			completedCount++
 			if ev.Status == "ok" {
-				fmt.Printf("  %s\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message))
+				fmt.Printf("  %s  %s\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message), ui.RenderProgress(completedCount, totalCandidates))
 			} else {
-				fmt.Printf("  %s\n", ui.StyleRoseBold.Render("✗ "+ev.Message))
+				fmt.Printf("  %s  %s\n", ui.StyleRoseBold.Render("✗ "+ev.Message), ui.RenderProgress(completedCount, totalCandidates))
 			}
 		case "complete":
 			fmt.Printf("\n  %s\n\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message))

@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VANGUARD — Unified Package Security &amp; Fleet Orchestrator</title>
-  <meta name="description" content="Single-binary Go daemon, Charm CLI &amp; embedded React 19 dashboard unifying 35+ package managers with real-time OSV.dev, Trivy, osv-scanner, and native CLI vulnerability intelligence." />
-  <meta property="og:title" content="VANGUARD — Unified Package Security &amp; Fleet Orchestrator" />
-  <meta property="og:description" content="35+ Package Managers · OSV.dev + Trivy + osv-scanner CVE Triage · Privilege-Safe Escalation · Single Go Binary." />
+  <title>VANGUARD — Vulnerability Intelligence &amp; Package Update Orchestrator</title>
+  <meta name="description" content="Unified vulnerability scanner and package update orchestrator across 35+ package managers. Powered by OSV.dev, GHSA, osv-scanner, Trivy, and native package manager audits with headless CLI and interactive Web Dashboard." />
+  <meta property="og:title" content="VANGUARD — Vulnerability Intelligence &amp; Package Update Orchestrator" />
+  <meta property="og:description" content="Detect CVEs by severity, separate safe minor/patch updates from major breaking changes, and orchestrate 35+ package managers via Web Dashboard or headless CLI." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://jankrloz.github.io/vanguard/" />
   <meta property="og:image" content="https://raw.githubusercontent.com/jankrloz/vanguard/main/assets/vanguard-social-preview.svg" />
@@ -94,7 +94,7 @@
     }
     .hero-sub {
       color: var(--muted); font-size: clamp(16px, 2vw, 19px);
-      max-width: 720px; margin: 0 auto 36px;
+      max-width: 740px; margin: 0 auto 36px;
     }
 
     /* Install Command Bar */
@@ -237,9 +237,9 @@
         <span class="brand-badge mono">v0.2.0</span>
       </a>
       <nav class="nav-links">
-        <a href="#features">Capabilities</a>
-        <a href="#security">CVE Intelligence</a>
-        <a href="#cli">CLI Reference</a>
+        <a href="#features">Features</a>
+        <a href="#security">Severity &amp; Risk</a>
+        <a href="#cli">CLI &amp; Dashboard</a>
       </nav>
       <a href="https://github.com/jankrloz/vanguard" target="_blank" rel="noopener noreferrer" class="btn-gh">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
@@ -252,13 +252,13 @@
     <section class="hero" style="border-top:none;">
       <div class="eyebrow mono">
         <span class="dot"></span>
-        <span>35+ PACKAGE MANAGERS · OSV.DEV + TRIVY + NATIVE AUDITS · TOUCH ID GUARD</span>
+        <span>35+ PACKAGE MANAGERS · OSV.DEV + OSV-SCANNER + TRIVY · HEADLESS CLI &amp; WEB DASHBOARD</span>
       </div>
       <h1>
         Zero-blindspot security for <span class="accent-text">every package on your machine.</span>
       </h1>
       <p class="hero-sub">
-        Vanguard unifies <strong>Meta Package Manager (mpm)</strong>, <strong>Topgrade</strong>, and multi-engine vulnerability hydration (<strong>OSV.dev, GHSA, osv-scanner, Trivy SBOM, npm audit, pip-audit</strong>) into a single Go binary—with a Charm-powered CLI and an embedded React 19 control center.
+        Vanguard scans all your system, language, and application package managers, correlates outdated dependencies against <strong>OSV.dev, GHSA, osv-scanner, Trivy, and native package manager audits</strong>, and separates urgent security fixes and safe minor/patch updates from major breaking releases.
       </p>
 
       <div class="install-box">
@@ -272,8 +272,8 @@
         <div class="window-bar">
           <div class="dots"><span></span><span></span><span></span></div>
           <div class="tabs">
-            <button class="tab-btn mono active" onclick="switchTab('cli', this)">Terminal CLI (vg check)</button>
-            <button class="tab-btn mono" onclick="switchTab('web', this)">Embedded Web Control (127.0.0.1:9099)</button>
+            <button class="tab-btn mono active" onclick="switchTab('cli', this)">Headless CLI (vg check)</button>
+            <button class="tab-btn mono" onclick="switchTab('web', this)">Web Dashboard (vg)</button>
           </div>
           <div class="mono c-muted" style="font-size:11px;">darwin/arm64</div>
         </div>
@@ -377,79 +377,85 @@
     </section>
 
     <section id="features">
-      <h2 class="section-title">Engineered for High-Signal Fleet Hygiene</h2>
-      <p class="section-sub">No bloated Electron wrappers, no cloud accounts, and no root-polluted user directories.</p>
+      <h2 class="section-title">Unified Vulnerability &amp; Update Intelligence</h2>
+      <p class="section-sub">Know every outdated dependency across your machine, its exact security impact, and whether upgrading is safe or breaking.</p>
       <div class="grid-3">
         <div class="card">
           <div class="card-icon mono">01</div>
-          <h3>35+ Package Managers via MPM</h3>
-          <p>Orchestrates Homebrew, Cask, npm, pnpm, bun, uv, uvx, pipx, Cargo, Go, RubyGems, gcloud, Composer, MAS, and APT/APK—automatically filtering out macOS system CPAN and SIP Ruby noise.</p>
+          <h3>Authoritative Vulnerability Engines</h3>
+          <p>Correlates outdated packages against <strong>OSV.dev</strong>, <strong>GitHub Security Advisories (GHSA)</strong>, SBOM scans via <code>osv-scanner</code> and <code>trivy</code>, and native package manager audits (<code>npm audit</code>, <code>pip-audit</code>).</p>
         </div>
         <div class="card">
           <div class="card-icon mono">02</div>
-          <h3>Multi-Engine CVE &amp; SBOM Triage</h3>
-          <p>Synthesizes real-time OSV.dev batch queries, CycloneDX 1.5 SBOM scans via <code>osv-scanner</code> and <code>trivy</code>, and native CLI audits (<code>npm audit</code>, <code>pip-audit</code>) with canonical CVE/GHSA deduplication.</p>
+          <h3>Inline Summaries &amp; Remediation Targets</h3>
+          <p>Displays human-readable vulnerability descriptions, package descriptions, CVSS severity badges, and exact patched versions (<code>Fixed &gt;= X.Y.Z</code> vs. unpatched <code>Zero-Day</code>) in both CLI and Web views.</p>
         </div>
         <div class="card">
           <div class="card-icon mono">03</div>
-          <h3>Namespace-Aware Privilege Guard</h3>
-          <p>Never runs user-scoped managers (brew, npm, cargo, pip, uv) as root. Escalates only for system-owned paths via Touch ID or native macOS authentication prompts.</p>
+          <h3>Safe Minor/Patch vs. Major Guards</h3>
+          <p>Automatically separates non-breaking <strong>Safe (Minor &amp; Patch)</strong> updates from <strong>Major Breaking</strong> releases, with package pinning to hold back specific dependencies when needed.</p>
         </div>
         <div class="card">
           <div class="card-icon mono">04</div>
-          <h3>In-Place Queue Review &amp; Lock</h3>
-          <p>Filter by Vulnerabilities, Safe, Major, Pinned, or Queued in a single unified table. Execution locks selection controls, verifies real exit markers, and streams live SSE stdout/stderr logs.</p>
+          <h3>35+ Package Managers Unified</h3>
+          <p>Scans and upgrades Homebrew formulae and casks, npm, pnpm, yarn, bun, pip, pipx, uv, uvx, Cargo, Go, RubyGems, gcloud, Composer, Mac App Store, APT/APK, and full-system Topgrade sweeps.</p>
         </div>
         <div class="card">
           <div class="card-icon mono">05</div>
-          <h3>Hardened Loopback Security</h3>
-          <p>Binds strictly to <code>127.0.0.1</code> with Host-header DNS-rebinding protection, strict Origin CSRF guards, and subprocess argument-injection validation.</p>
+          <h3>Interactive Web Dashboard</h3>
+          <p>Filter updates by <strong>Vulnerabilities</strong>, <strong>Safe</strong>, <strong>Major Breaking</strong>, <strong>Pinned</strong>, or <strong>Queued</strong>, inspect advisory links, and stream live upgrade output in real time.</p>
         </div>
         <div class="card">
           <div class="card-icon mono">06</div>
-          <h3>Single Go Binary + JSONL Audit</h3>
-          <p>React 19 + Tailwind v4 SPA is embedded via <code>//go:embed</code>. Every upgrade and Topgrade sweep is recorded to <code>~/.local/state/vanguard/history.jsonl</code>.</p>
+          <h3>Headless CLI &amp; Persistent Audit Log</h3>
+          <p>Run <code>vg check</code> as a CI or terminal security gate, execute batch upgrades with <code>vg apply</code>, monitor continuously with <code>vg monitor</code>, and audit every version change in <code>history.jsonl</code>.</p>
         </div>
       </div>
     </section>
 
     <section id="security">
-      <h2 class="section-title">Multi-Tier Vulnerability Triage</h2>
-      <p class="section-sub">Not all advisories are equal. Vanguard classifies and ranks every outdated package by real CVSS/GHSA severity across 4 scanner engines.</p>
+      <h2 class="section-title">Severity &amp; Update Risk Classification</h2>
+      <p class="section-sub">Not all advisories or version bumps carry the same risk. Vanguard ranks every package by exploitability and SemVer impact.</p>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Severity Tier</th>
-              <th>CVSS / Vector Criteria</th>
+              <th>Classification</th>
+              <th>Severity / SemVer Criteria</th>
               <th>Intelligence Sources</th>
-              <th>Default Behavior</th>
+              <th>Default Action</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td><span class="badge-crit mono">CRITICAL</span></td>
-              <td class="mono">CVSS &ge; 9.0 · Network RCE (AV:N/C:H/I:H)</td>
-              <td>OSV.dev, GHSA, Trivy SBOM, osv-scanner, npm/pip-audit</td>
-              <td>Ranked #1 · Auto-queued · Blocks <code>vg check</code> (exit 1)</td>
+              <td class="mono">CVSS 9.0 – 10.0 · Remote Code Execution / Auth Bypass</td>
+              <td>OSV.dev, GHSA, Trivy, osv-scanner, npm/pip-audit</td>
+              <td>Ranked #1 · Auto-queued · Fails <code>vg check</code> (exit 1)</td>
             </tr>
             <tr>
               <td><span class="badge-high mono">HIGH</span></td>
-              <td class="mono">CVSS 7.0 – 8.9 · Remote DoS / Memory Exhaustion</td>
-              <td>OSV.dev, GHSA, Trivy SBOM, osv-scanner, npm/pip-audit</td>
-              <td>Ranked #2 · Auto-queued · Blocks <code>vg check</code> (exit 1)</td>
+              <td class="mono">CVSS 7.0 – 8.9 · Denial of Service / Privilege Escalation</td>
+              <td>OSV.dev, GHSA, Trivy, osv-scanner, npm/pip-audit</td>
+              <td>Ranked #2 · Auto-queued · Fails <code>vg check</code> (exit 1)</td>
             </tr>
             <tr>
-              <td><span class="badge-med mono">MEDIUM</span></td>
-              <td class="mono">CVSS 4.0 – 6.9 · Local / Conditional Exploitation</td>
-              <td>GHSA Moderate, RubySec, PySEC, RustSec, npm/pip-audit</td>
-              <td>Ranked #3 · Highlighted with inline advisory &amp; package description</td>
+              <td><span class="badge-med mono">MEDIUM / LOW</span></td>
+              <td class="mono">CVSS 0.1 – 6.9 · Local or Conditional Exploitation</td>
+              <td>OSV.dev, GHSA, RubySec, PySEC, RustSec, native audits</td>
+              <td>Ranked #3 · Auto-queued · Inline summary &amp; fixed version</td>
             </tr>
             <tr>
-              <td><span class="badge-safe mono">SAFE (MINOR/PATCH)</span></td>
-              <td class="mono">SemVer non-breaking update (&lt; next major)</td>
-              <td>Registry SemVer Delta</td>
-              <td>Ranked #4 · Pre-selected for one-click batch upgrade</td>
+              <td><span class="badge-safe mono">SAFE (MINOR / PATCH)</span></td>
+              <td class="mono">Backwards-compatible SemVer update (&lt; next major)</td>
+              <td>Package Registry SemVer Delta</td>
+              <td>Ranked #4 · Pre-selected for batch upgrade</td>
+            </tr>
+            <tr>
+              <td><span class="badge-major-pill mono">MAJOR BREAKING</span></td>
+              <td class="mono">Major SemVer increment with potential breaking changes</td>
+              <td>Package Registry SemVer Delta</td>
+              <td>Unselected by default · Requires explicit opt-in</td>
             </tr>
           </tbody>
         </table>
@@ -457,8 +463,8 @@
     </section>
 
     <section id="cli">
-      <h2 class="section-title">CLI &amp; Headless Automation</h2>
-      <p class="section-sub">Styled with the Charm stack (Lipgloss) for interactive TrueColor terminals and clean CI/cron execution.</p>
+      <h2 class="section-title">CLI &amp; Headless Workflows</h2>
+      <p class="section-sub">Operate interactively from the Web Dashboard or automate checks and upgrades directly from the terminal.</p>
       <div class="table-wrap">
         <table>
           <thead>
@@ -470,27 +476,31 @@
           <tbody>
             <tr>
               <td class="mono c-cyan">vg</td>
-              <td>Launch local daemon on <code>127.0.0.1:9099</code> and open the embedded Web Control Center</td>
+              <td>Launch the local server and open the interactive Web Dashboard</td>
             </tr>
             <tr>
               <td class="mono c-cyan">vg -no-web</td>
-              <td>Run daemon in headless background mode without opening a browser window</td>
+              <td>Run the local server in headless background mode without opening a browser</td>
             </tr>
             <tr>
-              <td class="mono c-cyan">vg check</td>
-              <td>Scan all managers, run OSV/Trivy/native audits, print aligned severity table, exit <code>1</code> on CVEs</td>
+              <td class="mono c-cyan">vg check [--security-only | --manager &lt;id&gt;]</td>
+              <td>Scan all managers, run OSV/Trivy/osv-scanner/native audits, print aligned report, exit <code>1</code> on CVEs</td>
             </tr>
             <tr>
               <td class="mono c-cyan">vg apply [--security-only | --all | -y]</td>
-              <td>Apply safe or security-only updates directly in the terminal with live streaming verification</td>
+              <td>Apply safe or security-only updates in the terminal with live progress and post-upgrade verification</td>
             </tr>
             <tr>
               <td class="mono c-cyan">vg sweep</td>
-              <td>Trigger deep system-wide Topgrade sweep (git repos, language toolchains, firmware)</td>
+              <td>Run a deep system-wide Topgrade maintenance sweep across repositories, toolchains, and caches</td>
             </tr>
             <tr>
-              <td class="mono c-cyan">vg history</td>
-              <td>Inspect persistent JSONL upgrade audit trail (<code>~/.local/state/vanguard/history.jsonl</code>)</td>
+              <td class="mono c-cyan">vg history [--limit &lt;n&gt;]</td>
+              <td>Inspect the local upgrade audit trail (<code>~/.local/state/vanguard/history.jsonl</code>)</td>
+            </tr>
+            <tr>
+              <td class="mono c-cyan">vg monitor [--interval 1h]</td>
+              <td>Continuously poll for newly published vulnerabilities with desktop alert notifications</td>
             </tr>
           </tbody>
         </table>
@@ -500,7 +510,7 @@
 
   <footer>
     <div class="container">
-      Built with Go 1.26, Charm Lipgloss, OSV.dev, Trivy, React 19 &amp; Vite+ · <a href="https://github.com/jankrloz/vanguard" style="color:var(--cyan);">GitHub Repository</a>
+      Vanguard — Vulnerability Intelligence &amp; Package Update Orchestrator · <a href="https://github.com/jankrloz/vanguard" style="color:var(--cyan);">GitHub Repository</a>
     </div>
   </footer>
 
