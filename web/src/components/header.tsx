@@ -31,7 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-semibold tracking-tight text-zinc-100">UP</h1>
+              <h1 className="text-base font-semibold tracking-tight text-zinc-100">VANGUARD</h1>
               <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 bg-zinc-800/80 border border-zinc-700/50 px-1.5 py-0.5 rounded">
                 v1.0
               </span>

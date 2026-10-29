@@ -1,3 +1,3 @@
-module github.com/jc/up
+module github.com/jankrloz/vanguard
 
-go 1.27.3
+go 1.24

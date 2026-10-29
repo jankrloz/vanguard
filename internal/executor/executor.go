@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/jc/up/internal/domain"
+	"github.com/jankrloz/vanguard/internal/domain"
 )
 
 type EventCallback func(event domain.UpgradeEvent)

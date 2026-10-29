@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jc/up/internal/domain"
-	"github.com/jc/up/internal/executor"
-	"github.com/jc/up/internal/scanner"
+	"github.com/jankrloz/vanguard/internal/domain"
+	"github.com/jankrloz/vanguard/internal/executor"
+	"github.com/jankrloz/vanguard/internal/scanner"
 )
 
 type Config struct {
