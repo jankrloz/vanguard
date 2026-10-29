@@ -119,7 +119,7 @@ vg monitor --interval 1h
 | Flag | Default | Description |
 |---|---|---|
 | `--port <int>` | `9099` | Local HTTP server port (uses random free port if taken) |
-| `--no-open` | `false` | Do not automatically open the dashboard in default browser |
+| `--no-web` | `false` | Run headless server without opening default browser (`--no-open` supported as alias) |
 | `--no-sudo` | `false` | Skip privilege pre-flight priming |
 | `--dev` | `false` | Reverse-proxy to Vite HMR server (`http://127.0.0.1:5173`) |
 

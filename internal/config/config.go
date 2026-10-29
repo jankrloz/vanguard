@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -116,11 +117,23 @@ func (c *Config) IsPinned(pkgID string) bool {
 
 // EnsureMPMConfig primes MPM's configuration on macOS/Linux so that
 // managers requiring elevation (such as system Ruby gems in /Library/Ruby)
-// have sudo escalation enabled, preventing FilePermissionError aborts.
+// have sudo escalation enabled, while protecting user-level workspaces (~/.rbenv, ~/.asdf)
+// from root ownership pollution.
 func EnsureMPMConfig() error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
+	}
+
+	// Safety check: only configure sudo override if gem directory is in system space
+	out, err := exec.Command("gem", "environment", "gemdir").Output()
+	if err != nil {
+		return nil
+	}
+	gemDir := strings.TrimSpace(string(out))
+	if home != "" && strings.HasPrefix(gemDir, home) {
+		// User-owned Ruby environment; never escalate with sudo
+		return nil
 	}
 
 	var dir string

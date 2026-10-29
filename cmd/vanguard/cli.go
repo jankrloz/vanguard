@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/jankrloz/vanguard/internal/auth"
@@ -18,6 +17,7 @@ import (
 	"github.com/jankrloz/vanguard/internal/executor"
 	"github.com/jankrloz/vanguard/internal/history"
 	"github.com/jankrloz/vanguard/internal/scanner"
+	"github.com/jankrloz/vanguard/internal/ui"
 )
 
 func runCheck(ctx context.Context, args []string) int {
@@ -27,21 +27,16 @@ func runCheck(ctx context.Context, args []string) int {
 	limit := fs.Int("limit", 0, "Limit number of packages to print (0 for all)")
 	_ = fs.Parse(args)
 
-	fmt.Println("\n  ▲ VANGUARD — Security & Outdated Package Check")
-	fmt.Println("  ───────────────────────────────────────────────")
+	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
 
 	s := scanner.New()
 	res, err := s.Scan(ctx)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "  ✗ Scan failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "  %s✗ Scan failed: %v%s\n", ui.Rose, err, ui.Reset)
 		return 1
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "  MANAGER\tPACKAGE\tCURRENT\tLATEST\tCHANGE\tSECURITY ADVISORY")
-	fmt.Fprintln(w, "  ───────\t───────\t───────\t──────\t──────\t─────────────────")
-
-	count := 0
+	var candidates []domain.Package
 	for _, p := range res.Packages {
 		if *secOnly && !p.HasVulnerability {
 			continue
@@ -49,48 +44,78 @@ func runCheck(ctx context.Context, args []string) int {
 		if *mgrFilter != "" && !strings.EqualFold(p.Manager, *mgrFilter) {
 			continue
 		}
-		count++
-		if *limit > 0 && count > *limit {
-			continue
-		}
+		candidates = append(candidates, p)
+	}
 
-		secText := "None"
+	if len(candidates) == 0 {
+		fmt.Printf("  %s✓ All packages are up to date and clean of known vulnerabilities.%s\n\n", ui.Emerald, ui.Reset)
+		return 0
+	}
+
+	// Categorize
+	var cves, safes, majors, others []domain.Package
+	for _, p := range candidates {
 		if p.HasVulnerability {
-			var ids []string
-			for _, v := range p.Vulnerabilities {
-				ids = append(ids, v.ID)
+			cves = append(cves, p)
+		} else if p.ChangeType == domain.ChangeMajor {
+			majors = append(majors, p)
+		} else if p.Safe {
+			safes = append(safes, p)
+		} else {
+			others = append(others, p)
+		}
+	}
+
+	printGroup := func(title string, pkgs []domain.Package, headerColor string) {
+		if len(pkgs) == 0 {
+			return
+		}
+		fmt.Println(ui.SectionHeader(title, len(pkgs), headerColor))
+		for i, p := range pkgs {
+			if *limit > 0 && i >= *limit {
+				fmt.Printf("    %s... and %d more items%s\n", ui.DarkZinc, len(pkgs)-*limit, ui.Reset)
+				break
 			}
-			secText = fmt.Sprintf("🚨 %s [%s]", p.MaxSeverity, strings.Join(ids, ", "))
+			badge := ui.BadgeSafe()
+			if p.HasVulnerability {
+				badge = ui.BadgeCVE(p.Vulnerabilities[0].ID, p.MaxSeverity)
+			} else if p.ChangeType == domain.ChangeMajor {
+				badge = ui.BadgeMajor()
+			}
+			pinBadge := ""
+			if p.Pinned {
+				pinBadge = fmt.Sprintf(" %s[PINNED]%s", ui.Amber, ui.Reset)
+			}
+
+			fmt.Printf("  %s %s%-20s%s %s%s → %s%s %s%s\n",
+				ui.BadgeManager(p.Manager),
+				ui.Bold+ui.White, p.Name, ui.Reset,
+				ui.Zinc, p.CurrentVersion,
+				ui.White, p.LatestVersion+ui.Reset,
+				badge,
+				pinBadge,
+			)
+
+			if p.Description != "" {
+				fmt.Printf("    %s└─ %s%s%s\n", ui.DarkZinc, ui.Zinc, p.Description, ui.Reset)
+			}
 		}
-
-		pinMark := ""
-		if p.Pinned {
-			pinMark = " (pinned)"
-		}
-
-		fmt.Fprintf(w, "  %s\t%s%s\t%s\t%s\t%s\t%s\n",
-			p.Manager,
-			p.Name,
-			pinMark,
-			p.CurrentVersion,
-			p.LatestVersion,
-			p.ChangeType,
-			secText,
-		)
-	}
-	_ = w.Flush()
-
-	if *limit > 0 && count > *limit {
-		fmt.Printf("  ... and %d more packages (use --limit 0 to print all)\n", count-*limit)
 	}
 
-	fmt.Println("  ───────────────────────────────────────────────")
-	fmt.Printf("  Total Outdated: %d | Safe Minor/Patch: %d | Major Breaking: %d | Urgent CVEs: %d\n\n",
-		res.Summary.TotalPackages,
-		res.Summary.SafeCount,
-		res.Summary.MajorCount,
-		res.Summary.SecurityFixCount,
+	printGroup("CRITICAL & SECURITY ADVISORIES", cves, ui.Rose)
+	printGroup("SAFE MINOR & PATCH UPDATES", safes, ui.Emerald)
+	printGroup("MAJOR BREAKING UPDATES", majors, ui.Amber)
+	printGroup("OTHER PACKAGES", others, ui.Zinc)
+
+	summaryText := fmt.Sprintf(
+		"Total Outdated: %s%d%s │ Urgent CVEs: %s%d%s │ Safe: %s%d%s │ Major: %s%d%s │ Pinned: %d",
+		ui.White, res.Summary.TotalPackages, ui.Reset,
+		ui.Rose+ui.Bold, res.Summary.SecurityFixCount, ui.Reset,
+		ui.Emerald, res.Summary.SafeCount, ui.Reset,
+		ui.Amber, res.Summary.MajorCount, ui.Reset,
+		res.Summary.PinnedCount,
 	)
+	fmt.Printf("\n  %s\n  %s\n\n", ui.DarkZinc+strings.Repeat("─", 68)+ui.Reset, summaryText)
 
 	if res.Summary.SecurityFixCount > 0 {
 		return 1
@@ -147,56 +172,68 @@ func runApply(ctx context.Context, args []string) int {
 	}
 
 	if len(candidates) == 0 {
-		fmt.Println("  ✓ All packages are up to date and protected.")
+		fmt.Printf("  %s✓ All packages are up to date and protected.%s\n\n", ui.Emerald, ui.Reset)
 		return 0
 	}
 
-	fmt.Printf("  Targeting %d packages for upgrade:\n", len(candidates))
+	fmt.Printf("\n  %sTargeting %d packages for upgrade:%s\n", ui.Bold+ui.White, len(candidates), ui.Reset)
 	for _, p := range candidates {
-		tag := string(p.ChangeType)
+		badge := ui.BadgeSafe()
 		if p.HasVulnerability {
-			tag = "🚨 CVE FIX"
+			badge = ui.BadgeCVE(p.Vulnerabilities[0].ID, p.MaxSeverity)
+		} else if p.ChangeType == domain.ChangeMajor {
+			badge = ui.BadgeMajor()
 		}
-		fmt.Printf("    • [%s] %s %s -> %s (%s)\n", p.Manager, p.Name, p.CurrentVersion, p.LatestVersion, tag)
+
+		fmt.Printf("    • %s %s%-18s%s %s%s → %s%s %s\n",
+			ui.BadgeManager(p.Manager),
+			ui.Bold+ui.White, p.Name, ui.Reset,
+			ui.Zinc, p.CurrentVersion,
+			ui.White, p.LatestVersion+ui.Reset,
+			badge,
+		)
+		if p.Description != "" {
+			fmt.Printf("      %s└─ %s%s%s\n", ui.DarkZinc, ui.Zinc, p.Description, ui.Reset)
+		}
 	}
 
 	if !yes {
-		fmt.Print("\n  Proceed with upgrade? [y/N]: ")
+		fmt.Printf("\n  %sProceed with upgrade? [y/N]:%s ", ui.Bold+ui.Cyan, ui.Reset)
 		reader := bufio.NewReader(os.Stdin)
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(strings.ToLower(input))
 		if input != "y" && input != "yes" {
-			fmt.Println("  Aborted by user.")
+			fmt.Printf("  %sAborted by user.%s\n\n", ui.Zinc, ui.Reset)
 			return 0
 		}
 	}
 
-	fmt.Println("\n  Executing upgrades...")
+	fmt.Printf("\n  %sExecuting upgrades...%s\n", ui.Cyan, ui.Reset)
 	execEngine := executor.New()
 
 	err = execEngine.ExecuteUpgrades(ctx, candidates, func(ev domain.UpgradeEvent) {
 		switch ev.Type {
 		case "start":
-			fmt.Printf("  ▶ %s\n", ev.Message)
+			fmt.Printf("  %s▶%s %s\n", ui.Cyan, ui.Reset, ev.Message)
 		case "package_start":
-			fmt.Printf("\n  ==> %s\n", ev.Message)
+			fmt.Printf("\n  %s==>%s %s%s%s\n", ui.Cyan, ui.Reset, ui.Bold+ui.White, ev.Message, ui.Reset)
 		case "log":
-			fmt.Printf("    %s\n", ev.Message)
+			fmt.Printf("    %s%s%s\n", ui.Zinc, ev.Message, ui.Reset)
 		case "package_done":
 			if ev.Status == "ok" {
-				fmt.Printf("  ✓ %s\n", ev.Message)
+				fmt.Printf("  %s✓ %s%s\n", ui.Emerald, ev.Message, ui.Reset)
 			} else {
-				fmt.Printf("  ✗ %s\n", ev.Message)
+				fmt.Printf("  %s✗ %s%s\n", ui.Rose, ev.Message, ui.Reset)
 			}
 		case "complete":
-			fmt.Printf("\n  ✓ %s\n", ev.Message)
+			fmt.Printf("\n  %s✓ %s%s\n\n", ui.Emerald+ui.Bold, ev.Message, ui.Reset)
 		case "error":
-			fmt.Printf("\n  ✗ %s\n", ev.Message)
+			fmt.Printf("\n  %s✗ %s%s\n\n", ui.Rose+ui.Bold, ev.Message, ui.Reset)
 		}
 	})
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "  ✗ Upgrade run failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "  %s✗ Upgrade run failed: %v%s\n", ui.Rose, err, ui.Reset)
 		return 1
 	}
 
@@ -208,12 +245,13 @@ func runHistory(args []string) int {
 	limit := fs.Int("limit", 25, "Maximum number of history records to display")
 	_ = fs.Parse(args)
 
-	fmt.Println("\n  ▲ VANGUARD — Audit History Log")
-	fmt.Println("  ───────────────────────────────")
+	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
+	fmt.Printf("  %sAudit Upgrade History Log%s\n", ui.Bold+ui.White, ui.Reset)
+	fmt.Println(ui.DarkZinc + strings.Repeat("─", 68) + ui.Reset)
 
 	entries, err := history.ReadRecent(*limit)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "  ✗ Failed to read audit log: %v\n", err)
+		fmt.Fprintf(os.Stderr, "  %s✗ Failed to read audit log: %v%s\n", ui.Rose, err, ui.Reset)
 		return 1
 	}
 
@@ -222,22 +260,23 @@ func runHistory(args []string) int {
 		return 0
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "  TIMESTAMP\tPACKAGE\tMANAGER\tFROM\tTO\tSTATUS")
-	fmt.Fprintln(w, "  ─────────\t───────\t───────\t────\t──\t──────")
-
 	for _, e := range entries {
-		fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\t%s\n",
-			e.Timestamp.Format("2006-01-02 15:04:05"),
-			e.PackageID,
-			e.Manager,
-			e.FromVersion,
-			e.ToVersion,
-			e.Status,
+		statusColor := ui.Emerald
+		if e.Status != "ok" {
+			statusColor = ui.Rose
+		}
+
+		fmt.Printf("  %s%s%s  %s  %s%-22s%s  %s%s → %s%s  %s[%s]%s\n",
+			ui.DarkZinc, e.Timestamp.Format("2006-01-02 15:04:05"), ui.Reset,
+			ui.BadgeManager(e.Manager),
+			ui.Bold+ui.White, e.PackageID, ui.Reset,
+			ui.Zinc, e.FromVersion,
+			ui.White, e.ToVersion,
+			statusColor, e.Status, ui.Reset,
 		)
 	}
-	_ = w.Flush()
-	fmt.Printf("\n  Showing %d most recent records from %s\n\n", len(entries), history.LogPath())
+
+	fmt.Printf("\n  %sShowing %d most recent records from %s%s\n\n", ui.DarkZinc, len(entries), history.LogPath(), ui.Reset)
 	return 0
 }
 
@@ -290,13 +329,13 @@ func runMonitor(ctx context.Context, args []string) int {
 }
 
 func runSweep(ctx context.Context) int {
-	fmt.Println("\n  ▲ VANGUARD — Deep System Maintenance (Topgrade)")
-	fmt.Println("  Running system-wide sweep across:")
-	fmt.Println("  • Git repositories, submodules, and worktrees")
-	fmt.Println("  • Firmware, language toolchains (rustup, pyenv, nvm)")
-	fmt.Println("  • Shell frameworks, editor extensions, containers")
-	fmt.Println("  • macOS App Store & system caches")
-	fmt.Println("  ─────────────────────────────────────────────────")
+	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
+	fmt.Printf("  %sDeep System Maintenance Sweep (Topgrade)%s\n", ui.Bold+ui.White, ui.Reset)
+	fmt.Println(ui.DarkZinc + strings.Repeat("─", 68) + ui.Reset)
+	fmt.Printf("  %s• Git repositories, submodules, and clean worktrees%s\n", ui.Zinc, ui.Reset)
+	fmt.Printf("  %s• Toolchains & environments (Rust, Go, Python, Node, Ruby)%s\n", ui.Zinc, ui.Reset)
+	fmt.Printf("  %s• Shell frameworks, editor extensions, containers%s\n", ui.Zinc, ui.Reset)
+	fmt.Printf("  %s• macOS App Store & system package caches%s\n\n", ui.Zinc, ui.Reset)
 
 	_ = auth.EnsureSudo()
 	_ = config.EnsureMPMConfig()
@@ -305,20 +344,24 @@ func runSweep(ctx context.Context) int {
 	err := execEngine.ExecuteTopgrade(ctx, func(ev domain.UpgradeEvent) {
 		switch ev.Type {
 		case "start":
-			fmt.Printf("  ▶ %s\n", ev.Message)
+			fmt.Printf("  %s▶%s %s\n", ui.Cyan, ui.Reset, ev.Message)
 		case "log":
-			fmt.Printf("    %s\n", ev.Message)
+			fmt.Printf("    %s%s%s\n", ui.Zinc, ev.Message, ui.Reset)
 		case "package_done":
-			fmt.Printf("  ==> %s\n", ev.Message)
+			if ev.Status == "ok" {
+				fmt.Printf("  %s✓ %s%s\n", ui.Emerald, ev.Message, ui.Reset)
+			} else {
+				fmt.Printf("  %s✗ %s%s\n", ui.Rose, ev.Message, ui.Reset)
+			}
 		case "complete":
-			fmt.Printf("  ✓ %s\n", ev.Message)
+			fmt.Printf("\n  %s✓ %s%s\n\n", ui.Emerald+ui.Bold, ev.Message, ui.Reset)
 		case "error":
-			fmt.Printf("  ✗ %s\n", ev.Message)
+			fmt.Printf("\n  %s✗ %s%s\n\n", ui.Rose+ui.Bold, ev.Message, ui.Reset)
 		}
 	})
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "  ✗ Sweep failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "  %s✗ Sweep failed: %v%s\n\n", ui.Rose, err, ui.Reset)
 		return 1
 	}
 	return 0

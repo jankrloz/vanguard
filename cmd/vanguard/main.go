@@ -19,14 +19,14 @@ import (
 	"github.com/jankrloz/vanguard/internal/executor"
 	"github.com/jankrloz/vanguard/internal/scanner"
 	"github.com/jankrloz/vanguard/internal/server"
+	"github.com/jankrloz/vanguard/internal/ui"
 )
 
 const Version = "0.1.2"
 
 func printUsage() {
-	fmt.Printf(`Vanguard v%s — Vulnerability Shield & Package Orchestrator
-
-Usage:
+	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
+	fmt.Printf(`Usage:
   vg [command] [flags]
 
 Commands:
@@ -40,10 +40,10 @@ Commands:
 
 Dashboard Flags:
   -port int     HTTP server port (default 9099)
-  -no-open      Do not automatically open dashboard in browser
+  -no-web       Do not automatically open dashboard in browser (headless daemon mode)
   -no-sudo      Skip privilege pre-flight priming
   -dev          Run in development mode (reverse proxy to Vite dev server)
-`, Version)
+`)
 }
 
 func main() {
@@ -81,21 +81,23 @@ func main() {
 func runDashboard(ctx context.Context) {
 	devMode := flag.Bool("dev", false, "Enable development mode")
 	port := flag.Int("port", 9099, "HTTP server port (0 for random open port)")
-	noOpen := flag.Bool("no-open", false, "Do not automatically open browser on startup")
+	noWeb := flag.Bool("no-web", false, "Do not automatically open dashboard in browser")
+	noOpen := flag.Bool("no-open", false, "Alias for -no-web")
 	noSudo := flag.Bool("no-sudo", false, "Skip privilege pre-flight priming")
 	flag.Parse()
 
-	fmt.Println("\n  ▲ VANGUARD — Vulnerability Shield & Package Orchestrator")
-	fmt.Println("  ────────────────────────────────────────────────────────")
+	isHeadless := *noWeb || *noOpen
+
+	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
 
 	// 1. Privilege pre-flight & Keepalive
 	_ = config.EnsureMPMConfig()
 	if !*noSudo {
 		fmt.Print("  [1/3] Initializing privilege keepalive... ")
 		if err := auth.EnsureSudo(); err != nil {
-			fmt.Printf("⚠️  Warning: privilege priming failed: %v\n", err)
+			fmt.Printf("⚠️  Warning: privilege priming skipped (%v)\n", err)
 		} else {
-			fmt.Println("✓ Active")
+			fmt.Println("✓ Active (Touch ID / sudo cached)")
 			auth.StartKeepAlive(ctx, 40*time.Second)
 		}
 	} else {
@@ -146,11 +148,11 @@ func runDashboard(ctx context.Context) {
 	}()
 
 	// 4. Open browser
-	if !*noOpen {
+	if !isHeadless {
 		fmt.Printf("  [3/3] Opening dashboard in your default browser...\n\n")
 		go openBrowser(appURL)
 	} else {
-		fmt.Printf("  [3/3] Dashboard ready at %s\n\n", appURL)
+		fmt.Printf("  [3/3] Dashboard ready at %s (headless mode)\n\n", appURL)
 	}
 
 	fmt.Printf("  Press Ctrl+C to stop the background server.\n\n")

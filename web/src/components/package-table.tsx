@@ -746,47 +746,52 @@ export const PackageTable: FC<PackageTableProps> = ({
                                 )}
                               </button>
 
-                              <div className="min-w-0 flex items-center gap-2">
-                                <span className="font-mono text-xs font-semibold text-zinc-200 truncate">
-                                  {name}
-                                </span>
-
-                                {pkg.source_url && (
-                                  <a
-                                    href={pkg.source_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    title={`Open upstream repository/registry (${pkg.source_url})`}
-                                    className="text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 inline-flex items-center shrink-0 cursor-pointer"
-                                  >
-                                    <ExternalLink className="w-3 h-3" />
-                                  </a>
-                                )}
-
-                                {pkg.description && (
-                                  <span className="text-[11px] text-zinc-500 truncate max-w-xs hidden xl:inline" title={pkg.description}>
-                                    {pkg.description}
+                              <div className="min-w-0 flex flex-col justify-center py-0.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-xs font-semibold text-zinc-200 truncate">
+                                    {name}
                                   </span>
-                                )}
 
-                                <button
-                                  type="button"
-                                  disabled={isUpgrading}
-                                  title={pinned ? "Unpin package" : "Pin package (lock current version)"}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!isUpgrading) onTogglePin(id);
-                                  }}
-                                  className={`flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
-                                    pinned
-                                      ? "bg-amber-950/90 text-amber-300 border border-amber-700 hover:bg-amber-900"
-                                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/80 border border-transparent"
-                                  }`}
-                                >
-                                  <Pin className="w-2.5 h-2.5" />
-                                  <span>{pinned ? "Pinned" : "Pin"}</span>
-                                </button>
+                                  {pkg.source_url && (
+                                    <a
+                                      href={pkg.source_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      title={`Open upstream repository/registry (${pkg.source_url})`}
+                                      className="text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 inline-flex items-center shrink-0 cursor-pointer"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    disabled={isUpgrading}
+                                    title={pinned ? "Unpin package" : "Pin package (lock current version)"}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!isUpgrading) onTogglePin(id);
+                                    }}
+                                    className={`flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.2 rounded transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
+                                      pinned
+                                        ? "bg-amber-950/90 text-amber-300 border border-amber-700 hover:bg-amber-900"
+                                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/80 border border-transparent"
+                                    }`}
+                                  >
+                                    <Pin className="w-2.5 h-2.5" />
+                                    <span>{pinned ? "Pinned" : "Pin"}</span>
+                                  </button>
+                                </div>
+
+                                {(pkg.description || (vulns.length > 0 && vulns[0].summary)) && (
+                                  <p
+                                    className="text-[11px] font-mono text-zinc-400 truncate max-w-xl mt-0.5 leading-tight"
+                                    title={pkg.description || vulns[0]?.summary}
+                                  >
+                                    {pkg.description || vulns[0]?.summary}
+                                  </p>
+                                )}
                               </div>
                             </div>
 

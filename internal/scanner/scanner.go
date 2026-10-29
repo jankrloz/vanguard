@@ -100,6 +100,9 @@ func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 	advisor := security.NewAdvisor()
 	packages = advisor.EnrichPackages(ctx, packages)
 
+	// 4. Enrich package descriptions
+	enrichDescriptions(ctx, packages)
+
 	safeCount := 0
 	majorCount := 0
 	pinnedCount := 0
@@ -217,4 +220,86 @@ func ParseMPMOutput(r io.Reader) []domain.Package {
 	}
 
 	return packages
+}
+
+func enrichDescriptions(ctx context.Context, packages []domain.Package) {
+	var brewNames []string
+	for _, p := range packages {
+		if (p.Manager == "brew" || p.Manager == "cask") && p.Description == "" {
+			brewNames = append(brewNames, p.Name)
+		}
+	}
+
+	if len(brewNames) > 0 {
+		descMap := fetchBrewDescriptions(ctx, brewNames)
+		for i := range packages {
+			if desc, ok := descMap[packages[i].Name]; ok && desc != "" {
+				packages[i].Description = desc
+			}
+		}
+	}
+
+	// For gems: if description is empty, try quick gem specification
+	for i := range packages {
+		if packages[i].Manager == "gem" && packages[i].Description == "" {
+			subCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+			out, err := exec.CommandContext(subCtx, "gem", "specification", packages[i].Name, "description").Output()
+			cancel()
+			if err == nil {
+				d := strings.TrimSpace(string(out))
+				d = strings.TrimPrefix(d, "--- ")
+				d = strings.TrimSpace(d)
+				if d != "" && !strings.Contains(d, "ERROR") {
+					packages[i].Description = d
+				}
+			}
+		}
+	}
+
+	// Fallback to vulnerability summary if description is still empty
+	for i := range packages {
+		if packages[i].Description == "" && len(packages[i].Vulnerabilities) > 0 {
+			packages[i].Description = packages[i].Vulnerabilities[0].Summary
+		}
+	}
+}
+
+func fetchBrewDescriptions(ctx context.Context, names []string) map[string]string {
+	descMap := make(map[string]string)
+	if len(names) == 0 {
+		return descMap
+	}
+
+	for i := 0; i < len(names); i += 50 {
+		end := i + 50
+		if end > len(names) {
+			end = len(names)
+		}
+		batch := names[i:end]
+		args := append([]string{"desc"}, batch...)
+
+		subCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+		cmd := exec.CommandContext(subCtx, "brew", args...)
+		out, err := cmd.Output()
+		cancel()
+
+		if err != nil && len(out) == 0 {
+			continue
+		}
+
+		scanner := bufio.NewScanner(bytes.NewReader(out))
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if idx := strings.Index(line, ":"); idx != -1 {
+				pkgPart := strings.TrimSpace(line[:idx])
+				pkgPart = strings.TrimSuffix(pkgPart, " ✔")
+				pkgPart = strings.TrimSpace(pkgPart)
+				descPart := strings.TrimSpace(line[idx+1:])
+				if pkgPart != "" && descPart != "" {
+					descMap[pkgPart] = descPart
+				}
+			}
+		}
+	}
+	return descMap
 }

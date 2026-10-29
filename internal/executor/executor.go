@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -24,13 +26,55 @@ func New() *Executor {
 	return &Executor{}
 }
 
-func isPrivilegedManager(mgr string) bool {
+// requiresPrivilegeEscalation inspects whether upgrading a package manager requires
+// root escalation, strictly guarding user-level environments from root ownership pollution.
+func requiresPrivilegeEscalation(mgr string) bool {
+	// 1. User-scoped managers must NEVER run with sudo (prevents root-polluted ~/.npm, ~/.cargo, Homebrew aborts)
 	switch strings.ToLower(mgr) {
-	case "gem", "apt", "aptitude", "dnf", "dnf5", "pacman", "zypper", "apk", "emerge", "pkg":
-		return true
-	default:
+	case "brew", "cask", "npm", "pnpm", "yarn", "cargo", "pip", "pipx", "mise", "asdf",
+		"fisher", "antidote", "antigen", "zinit", "zplug", "rustup", "go", "composer":
 		return false
 	}
+
+	// 2. Linux native system package managers always require root
+	switch strings.ToLower(mgr) {
+	case "apt", "aptitude", "dnf", "dnf5", "pacman", "zypper", "apk", "emerge":
+		return true
+	}
+
+	// 3. For hybrid managers like Ruby gems: inspect the active gem directory
+	if strings.ToLower(mgr) == "gem" {
+		home, _ := os.UserHomeDir()
+		out, err := exec.Command("gem", "environment", "gemdir").Output()
+		if err == nil {
+			gemDir := strings.TrimSpace(string(out))
+			// Safety rule: if inside user's $HOME (e.g. ~/.rbenv, ~/.asdf, ~/.gem), NEVER use sudo
+			if home != "" && strings.HasPrefix(gemDir, home) {
+				return false
+			}
+			// Check if writable by the current user
+			if isDirWritable(gemDir) {
+				return false
+			}
+			return true // System directory (e.g. /Library/Ruby/Gems/2.6.0) owned by root
+		}
+	}
+
+	return false
+}
+
+func isDirWritable(path string) bool {
+	if path == "" {
+		return false
+	}
+	testFile := filepath.Join(path, ".vanguard_write_probe")
+	f, err := os.OpenFile(testFile, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0600)
+	if err != nil {
+		return false
+	}
+	_ = f.Close()
+	_ = os.Remove(testFile)
+	return true
 }
 
 // ExecuteUpgrades groups packages by manager and runs upgrades while streaming events.
@@ -74,7 +118,7 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 		var args []string
 		if mgr != "" && mgr != "all" {
 			args = append(args, "--"+mgr)
-			if isPrivilegedManager(mgr) {
+			if requiresPrivilegeEscalation(mgr) {
 				args = append(args, "--sudo")
 			}
 		}

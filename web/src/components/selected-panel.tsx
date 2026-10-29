@@ -220,20 +220,29 @@ export const SelectedPanel: FC<SelectedPanelProps> = ({
                           <span className="text-[10px] uppercase font-bold text-zinc-400 bg-zinc-900 px-1.5 py-0.2 rounded border border-zinc-800 shrink-0">
                             {p.manager}
                           </span>
-                          <span className="font-semibold text-zinc-200 truncate">
-                            {p.name}
-                          </span>
-                          {p.source_url && (
-                            <a
-                              href={p.source_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-zinc-500 hover:text-zinc-300"
-                              title="Upstream source"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
+                          <div className="min-w-0 flex flex-col justify-center">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-zinc-200 truncate">
+                                {p.name}
+                              </span>
+                              {p.source_url && (
+                                <a
+                                  href={p.source_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-zinc-500 hover:text-zinc-300"
+                                  title="Upstream source"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
+                            {(p.description || p.vulnerabilities?.[0]?.summary) && (
+                              <p className="text-[11px] text-zinc-400 truncate max-w-md mt-0.5" title={p.description || p.vulnerabilities?.[0]?.summary}>
+                                {p.description || p.vulnerabilities?.[0]?.summary}
+                              </p>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-3 shrink-0 self-end sm:self-center font-mono">
@@ -291,20 +300,29 @@ export const SelectedPanel: FC<SelectedPanelProps> = ({
                           <span className="text-[10px] uppercase font-bold text-zinc-400 bg-zinc-900 px-1.5 py-0.2 rounded border border-zinc-800 shrink-0">
                             {p.manager}
                           </span>
-                          <span className="font-semibold text-zinc-200 truncate">
-                            {p.name}
-                          </span>
-                          {p.source_url && (
-                            <a
-                              href={p.source_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-zinc-500 hover:text-zinc-300"
-                              title="Upstream source"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
+                          <div className="min-w-0 flex flex-col justify-center">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-zinc-200 truncate">
+                                {p.name}
+                              </span>
+                              {p.source_url && (
+                                <a
+                                  href={p.source_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-zinc-500 hover:text-zinc-300"
+                                  title="Upstream source"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
+                            {p.description && (
+                              <p className="text-[11px] text-zinc-400 truncate max-w-md mt-0.5" title={p.description}>
+                                {p.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-3 shrink-0 self-end sm:self-center font-mono">
@@ -352,20 +370,29 @@ export const SelectedPanel: FC<SelectedPanelProps> = ({
                           <span className="text-[10px] uppercase font-bold text-zinc-400 bg-zinc-900 px-1.5 py-0.2 rounded border border-zinc-800 shrink-0">
                             {p.manager}
                           </span>
-                          <span className="font-semibold text-zinc-200 truncate">
-                            {p.name}
-                          </span>
-                          {p.source_url && (
-                            <a
-                              href={p.source_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-zinc-500 hover:text-zinc-300"
-                              title="Upstream source"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
+                          <div className="min-w-0 flex flex-col justify-center">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-zinc-200 truncate">
+                                {p.name}
+                              </span>
+                              {p.source_url && (
+                                <a
+                                  href={p.source_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-zinc-500 hover:text-zinc-300"
+                                  title="Upstream source"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
+                            {p.description && (
+                              <p className="text-[11px] text-zinc-400 truncate max-w-md mt-0.5" title={p.description}>
+                                {p.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-3 shrink-0 self-end sm:self-center font-mono">
