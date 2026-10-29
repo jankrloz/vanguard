@@ -33,8 +33,8 @@ func New() *Executor {
 func requiresPrivilegeEscalation(mgr string) bool {
 	// 1. User-scoped managers must NEVER run with sudo (prevents root-polluted ~/.npm, ~/.cargo, Homebrew aborts)
 	switch strings.ToLower(mgr) {
-	case "brew", "cask", "npm", "pnpm", "yarn", "cargo", "pip", "pipx", "uv", "uvx", "gcloud", "mise", "asdf",
-		"fisher", "antidote", "antigen", "zinit", "zplug", "rustup", "go", "composer":
+	case "brew", "cask", "npm", "pnpm", "yarn", "bun", "cargo", "pip", "pipx", "uv", "uvx", "gcloud", "mise", "asdf",
+		"fisher", "antidote", "antigen", "zinit", "zplug", "rustup", "go", "composer", "vscode", "gh-ext", "mas":
 		return false
 	}
 
@@ -54,7 +54,6 @@ func requiresPrivilegeEscalation(mgr string) bool {
 			if home != "" && strings.HasPrefix(gemDir, home) {
 				return false
 			}
-			// Check if writable by the current user
 			if isDirWritable(gemDir) {
 				return false
 			}
@@ -88,66 +87,187 @@ func isSafeIdentifier(s string) bool {
 	return !strings.ContainsAny(s, "\x00\r\n\t;&|`$")
 }
 
-// buildUpgradeCommand constructs the authoritative upgrade command for a given manager.
-// Uses native CLIs for managers where mpm lacks support or mishandles arguments (e.g. brew custom taps,
-// gcloud components, uv system pip, uvx tools), falling back to mpm for remaining ecosystems.
-func buildUpgradeCommand(ctx context.Context, mgr string, names []string, onEvent EventCallback) *exec.Cmd {
-	lowerMgr := strings.ToLower(mgr)
-	switch lowerMgr {
-	case "brew":
-		if _, err := exec.LookPath("brew"); err == nil {
-			args := append([]string{"upgrade"}, names...)
-			cmd := exec.CommandContext(ctx, "brew", args...)
-			cmd.Env = append(os.Environ(), "HOMEBREW_NO_ENV_HINTS=1")
-			return cmd
-		}
-	case "cask":
-		if _, err := exec.LookPath("brew"); err == nil {
-			args := append([]string{"upgrade", "--cask"}, names...)
-			cmd := exec.CommandContext(ctx, "brew", args...)
-			cmd.Env = append(os.Environ(), "HOMEBREW_NO_ENV_HINTS=1")
-			return cmd
-		}
-	case "gcloud":
-		if _, err := exec.LookPath("gcloud"); err == nil {
-			return exec.CommandContext(ctx, "gcloud", "components", "update", "--quiet")
-		}
-	case "uv":
-		if _, err := exec.LookPath("uv"); err == nil {
-			args := append([]string{"pip", "install", "--system", "--upgrade"}, names...)
-			return exec.CommandContext(ctx, "uv", args...)
-		}
-	case "uvx":
-		if _, err := exec.LookPath("uv"); err == nil {
-			args := append([]string{"tool", "upgrade"}, names...)
-			return exec.CommandContext(ctx, "uv", args...)
-		}
-	case "pipx":
-		if _, err := exec.LookPath("pipx"); err == nil {
-			args := append([]string{"upgrade"}, names...)
-			return exec.CommandContext(ctx, "pipx", args...)
-		}
-	}
-
+// buildMPMCommand constructs the primary MPM upgrade command for a manager and package list.
+func buildMPMCommand(ctx context.Context, mgr string, names []string) *exec.Cmd {
 	var args []string
 	if mgr != "" && mgr != "all" {
 		args = append(args, "--"+mgr)
 		if requiresPrivilegeEscalation(mgr) {
 			args = append(args, "--sudo")
-			if err := auth.EnsureSudo(); err != nil {
-				onEvent(domain.UpgradeEvent{
-					Type:    "log",
-					Message: fmt.Sprintf("⚠️ [%s] requires administrator privileges: %v. Please prime credentials via 'sudo -v' or terminal 'vg'", mgr, err),
-				})
-			}
+			_ = auth.EnsureSudo()
 		}
 	}
 	args = append(args, "upgrade")
 	args = append(args, names...)
-	return exec.CommandContext(ctx, "mpm", args...)
+	cmd := exec.CommandContext(ctx, "mpm", args...)
+	cmd.Env = append(os.Environ(), "HOMEBREW_NO_ENV_HINTS=1")
+	return cmd
 }
 
-// ExecuteUpgrades groups packages by manager in deterministic order and runs upgrades while streaming events.
+// buildNativeFallbackCommands constructs native CLI upgrade commands for a package manager
+// when MPM fails, lacks support for the manager, or rejects custom tap/component identifiers.
+func buildNativeFallbackCommands(ctx context.Context, mgr string, names []string) []*exec.Cmd {
+	lowerMgr := strings.ToLower(mgr)
+	withCleanEnv := func(cmd *exec.Cmd) *exec.Cmd {
+		cmd.Env = append(os.Environ(), "HOMEBREW_NO_ENV_HINTS=1")
+		return cmd
+	}
+
+	switch lowerMgr {
+	case "brew":
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "brew", append([]string{"upgrade"}, names...)...))}
+	case "cask":
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "brew", append([]string{"upgrade", "--cask"}, names...)...))}
+	case "gcloud":
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "gcloud", "components", "update", "--quiet"))}
+	case "npm":
+		targets := make([]string, 0, len(names)+2)
+		targets = append(targets, "install", "-g")
+		for _, n := range names {
+			targets = append(targets, n+"@latest")
+		}
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "npm", targets...))}
+	case "pnpm":
+		targets := make([]string, 0, len(names)+2)
+		targets = append(targets, "add", "-g")
+		for _, n := range names {
+			targets = append(targets, n+"@latest")
+		}
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "pnpm", targets...))}
+	case "yarn":
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "yarn", append([]string{"global", "upgrade"}, names...)...))}
+	case "bun":
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "bun", append([]string{"update", "-g"}, names...)...))}
+	case "pip":
+		bin := "pip3"
+		if _, err := exec.LookPath("pip3"); err != nil {
+			bin = "pip"
+		}
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, bin, append([]string{"install", "--upgrade"}, names...)...))}
+	case "pipx":
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "pipx", append([]string{"upgrade"}, names...)...))}
+	case "uv":
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "uv", append([]string{"pip", "install", "--system", "--upgrade"}, names...)...))}
+	case "uvx":
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "uv", append([]string{"tool", "upgrade"}, names...)...))}
+	case "cargo":
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "cargo", append([]string{"install"}, names...)...))}
+	case "rustup":
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "rustup", "update"))}
+	case "gem":
+		if requiresPrivilegeEscalation("gem") {
+			_ = auth.EnsureSudo()
+			return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "sudo", append([]string{"gem", "update"}, names...)...))}
+		}
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "gem", append([]string{"update"}, names...)...))}
+	case "mas":
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "mas", append([]string{"upgrade"}, names...)...))}
+	case "composer":
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "composer", append([]string{"global", "update"}, names...)...))}
+	case "apt", "aptitude":
+		_ = auth.EnsureSudo()
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "sudo", append([]string{"apt-get", "install", "--only-upgrade", "-y"}, names...)...))}
+	case "dnf", "dnf5":
+		_ = auth.EnsureSudo()
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "sudo", append([]string{"dnf", "upgrade", "-y"}, names...)...))}
+	case "apk":
+		_ = auth.EnsureSudo()
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "sudo", append([]string{"apk", "upgrade"}, names...)...))}
+	case "pacman":
+		_ = auth.EnsureSudo()
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "sudo", append([]string{"pacman", "-S", "--noconfirm"}, names...)...))}
+	case "zypper":
+		_ = auth.EnsureSudo()
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "sudo", append([]string{"zypper", "update", "-y"}, names...)...))}
+	case "vscode":
+		var cmds []*exec.Cmd
+		for _, n := range names {
+			cmds = append(cmds, withCleanEnv(exec.CommandContext(ctx, "code", "--install-extension", n, "--force")))
+		}
+		return cmds
+	case "gh-ext":
+		var cmds []*exec.Cmd
+		for _, n := range names {
+			cmds = append(cmds, withCleanEnv(exec.CommandContext(ctx, "gh", "extension", "upgrade", n)))
+		}
+		return cmds
+	default:
+		return nil
+	}
+}
+
+// executeWithSilentFallback runs MPM first (buffering its output), and if MPM fails or reports
+// stream-level errors, silently falls back to the native package manager command(s).
+func (e *Executor) executeWithSilentFallback(ctx context.Context, mgr string, names []string, onEvent EventCallback) error {
+	mpmCmd := buildMPMCommand(ctx, mgr, names)
+	var mpmLogs []string
+	mpmErr := e.runStreamingCommand(mpmCmd, func(ev domain.UpgradeEvent) {
+		if ev.Type == "log" {
+			mpmLogs = append(mpmLogs, ev.Message)
+		}
+	})
+
+	if mpmErr == nil {
+		for _, line := range mpmLogs {
+			onEvent(domain.UpgradeEvent{
+				Type:    "log",
+				Message: line,
+			})
+		}
+		return nil
+	}
+
+	// MPM failed: attempt silent native fallback
+	fallbackCmds := buildNativeFallbackCommands(ctx, mgr, names)
+	if len(fallbackCmds) == 0 {
+		// No native fallback known for this manager; flush MPM logs so user has diagnostics
+		for _, line := range mpmLogs {
+			onEvent(domain.UpgradeEvent{
+				Type:    "log",
+				Message: line,
+			})
+		}
+		return mpmErr
+	}
+
+	var fallbackLogs []string
+	var fallbackErr error
+	for _, fbCmd := range fallbackCmds {
+		err := e.runStreamingCommand(fbCmd, func(ev domain.UpgradeEvent) {
+			if ev.Type == "log" {
+				fallbackLogs = append(fallbackLogs, ev.Message)
+			}
+		})
+		if err != nil {
+			fallbackErr = err
+			break
+		}
+	}
+
+	if fallbackErr == nil {
+		for _, line := range fallbackLogs {
+			onEvent(domain.UpgradeEvent{
+				Type:    "log",
+				Message: line,
+			})
+		}
+		return nil
+	}
+
+	// Only emit fallback logs when single-package or no further per-package isolation will run
+	if len(names) <= 1 {
+		for _, line := range fallbackLogs {
+			onEvent(domain.UpgradeEvent{
+				Type:    "log",
+				Message: line,
+			})
+		}
+	}
+	return fallbackErr
+}
+
+// ExecuteUpgrades groups packages by manager in deterministic order, attempts MPM first,
+// silently falls back to native CLIs on failure, and isolates faults per-package when batches fail.
 func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, onEvent EventCallback) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -222,19 +342,8 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 			Message: fmt.Sprintf("Upgrading [%s] packages: %s", mgr, strings.Join(names, ", ")),
 		})
 
-		cmd := buildUpgradeCommand(ctx, mgr, names, onEvent)
-		err := e.runStreamingCommand(cmd, onEvent)
-		status := "ok"
-		if err != nil {
-			status = "failed"
-			failedPackages += len(pkgList)
-			onEvent(domain.UpgradeEvent{
-				Type:    "package_done",
-				Package: mgr,
-				Status:  "failed",
-				Message: fmt.Sprintf("[%s] failed: %v", mgr, err),
-			})
-		} else {
+		err := e.executeWithSilentFallback(ctx, mgr, names, onEvent)
+		if err == nil {
 			succeededPackages += len(pkgList)
 			onEvent(domain.UpgradeEvent{
 				Type:    "package_done",
@@ -242,9 +351,72 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 				Status:  "ok",
 				Message: fmt.Sprintf("[%s] successfully upgraded (%d/%d)", mgr, len(pkgList), len(pkgList)),
 			})
+			for _, p := range pkgList {
+				_ = history.Append(history.Entry{
+					Timestamp:   time.Now(),
+					PackageID:   p.ID,
+					Manager:     p.Manager,
+					FromVersion: p.CurrentVersion,
+					ToVersion:   p.LatestVersion,
+					Status:      "ok",
+				})
+			}
+			continue
 		}
 
-		// Record in persistent audit history
+		// Fault isolation: if a multi-package manager batch failed and the manager supports
+		// per-package upgrades (i.e. not whole-suite updaters like gcloud/rustup), retry each package individually.
+		lowerMgr := strings.ToLower(mgr)
+		if len(pkgList) > 1 && lowerMgr != "gcloud" && lowerMgr != "rustup" {
+			mgrSucceeded := 0
+			mgrFailed := 0
+			var lastErr error
+			for _, p := range pkgList {
+				pkgErr := e.executeWithSilentFallback(ctx, mgr, []string{p.Name}, onEvent)
+				pkgStatus := "ok"
+				if pkgErr != nil {
+					pkgStatus = "failed"
+					mgrFailed++
+					failedPackages++
+					lastErr = pkgErr
+				} else {
+					mgrSucceeded++
+					succeededPackages++
+				}
+				_ = history.Append(history.Entry{
+					Timestamp:   time.Now(),
+					PackageID:   p.ID,
+					Manager:     p.Manager,
+					FromVersion: p.CurrentVersion,
+					ToVersion:   p.LatestVersion,
+					Status:      pkgStatus,
+				})
+			}
+			if mgrFailed == 0 {
+				onEvent(domain.UpgradeEvent{
+					Type:    "package_done",
+					Package: mgr,
+					Status:  "ok",
+					Message: fmt.Sprintf("[%s] successfully upgraded (%d/%d)", mgr, mgrSucceeded, len(pkgList)),
+				})
+			} else {
+				onEvent(domain.UpgradeEvent{
+					Type:    "package_done",
+					Package: mgr,
+					Status:  "failed",
+					Message: fmt.Sprintf("[%s] partial/failed (%d/%d upgraded): %v", mgr, mgrSucceeded, len(pkgList), lastErr),
+				})
+			}
+			continue
+		}
+
+		failedPackages += len(pkgList)
+		onEvent(domain.UpgradeEvent{
+			Type:    "package_done",
+			Package: mgr,
+			Status:  "failed",
+			Message: fmt.Sprintf("[%s] failed: %v", mgr, err),
+		})
 		for _, p := range pkgList {
 			_ = history.Append(history.Entry{
 				Timestamp:   time.Now(),
@@ -252,7 +424,7 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 				Manager:     p.Manager,
 				FromVersion: p.CurrentVersion,
 				ToVersion:   p.LatestVersion,
-				Status:      status,
+				Status:      "failed",
 			})
 		}
 	}
