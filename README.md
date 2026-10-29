@@ -55,21 +55,21 @@ When critical vulnerabilities emerge (such as zero-days, RCEs, prototype polluti
 
 ## 🚀 Quickstart
 
-### Prerequisites
-- Go 1.24+
-- Node.js & pnpm (or Vite+ `vp`)
-- Homebrew & `mpm` (`brew install meta-package-manager`)
-
-### Installation via Taskfile
+### Option 1: Install via Homebrew (Recommended)
 ```bash
-# Clone the repository
+brew tap jankrloz/tap
+brew install vanguard
+
+# Or in a single command:
+brew install jankrloz/tap/vanguard
+```
+
+### Option 2: Build from Source via Taskfile
+```bash
 git clone https://github.com/jankrloz/vanguard.git ~/dev/personal/vanguard
 cd ~/dev/personal/vanguard
 
-# Build frontend and compile standalone binary
 task build
-
-# Install to ~/.local/bin/vanguard (with vg and up symlinks)
 task install
 ```
 
