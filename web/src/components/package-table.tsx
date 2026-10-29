@@ -272,21 +272,8 @@ export const PackageTable: FC<PackageTableProps> = ({
           )}
         </div>
 
-        {/* Filter Pills */}
+        {/* Filter Pills - Order: Critical/CVEs -> Safe -> Major -> All -> Pinned */}
         <div className="flex items-center gap-1.5 text-xs flex-wrap">
-          <button
-            type="button"
-            disabled={isUpgrading}
-            onClick={() => onFilterChange("all")}
-            className={`px-2.5 py-1 rounded-md transition-colors text-xs font-mono disabled:opacity-50 ${
-              activeFilter === "all"
-                ? "bg-zinc-800 text-zinc-100 font-semibold border border-zinc-700"
-                : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-transparent cursor-pointer"
-            }`}
-          >
-            All ({packages.length})
-          </button>
-
           {securityPackagesCount > 0 && (
             <button
               type="button"
@@ -299,7 +286,7 @@ export const PackageTable: FC<PackageTableProps> = ({
               }`}
             >
               <Flame className="w-3 h-3 text-rose-400" />
-              CVEs ({securityPackagesCount})
+              Critical / CVEs ({securityPackagesCount})
             </button>
           )}
 
@@ -327,6 +314,19 @@ export const PackageTable: FC<PackageTableProps> = ({
             }`}
           >
             Major ({majorPackagesCount})
+          </button>
+
+          <button
+            type="button"
+            disabled={isUpgrading}
+            onClick={() => onFilterChange("all")}
+            className={`px-2.5 py-1 rounded-md transition-colors text-xs font-mono disabled:opacity-50 ${
+              activeFilter === "all"
+                ? "bg-zinc-800 text-zinc-100 font-semibold border border-zinc-700"
+                : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-transparent cursor-pointer"
+            }`}
+          >
+            All ({packages.length})
           </button>
 
           {pinnedPackagesCount > 0 && (
@@ -617,6 +617,25 @@ export const PackageTable: FC<PackageTableProps> = ({
                                   {name}
                                 </span>
 
+                                {pkg.source_url && (
+                                  <a
+                                    href={pkg.source_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    title={`Open upstream repository/registry (${pkg.source_url})`}
+                                    className="text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 inline-flex items-center shrink-0 cursor-pointer"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                )}
+
+                                {pkg.description && (
+                                  <span className="text-[11px] text-zinc-500 truncate max-w-xs hidden xl:inline" title={pkg.description}>
+                                    {pkg.description}
+                                  </span>
+                                )}
+
                                 {hasVuln && (
                                   <button
                                     type="button"
@@ -720,7 +739,7 @@ export const PackageTable: FC<PackageTableProps> = ({
                                     key={i}
                                     className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-zinc-300 bg-rose-950/30 p-2 rounded-md border border-rose-900/40"
                                   >
-                                    <div className="flex items-center gap-2 min-w-0">
+                                    <div className="flex items-center gap-2 min-w-0 flex-wrap sm:flex-nowrap">
                                       <a
                                         href={osvUrl}
                                         target="_blank"
@@ -732,10 +751,23 @@ export const PackageTable: FC<PackageTableProps> = ({
                                         <span>{v.id}</span>
                                         <ExternalLink className="w-3 h-3" />
                                       </a>
-                                      <span className="text-[10px] px-1 py-0.2 rounded bg-rose-900/60 text-rose-300 border border-rose-700 shrink-0 font-semibold">
-                                        {v.severity || "HIGH"}
+                                      {v.source && (
+                                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-zinc-900 border border-zinc-700/80 text-zinc-300 shrink-0">
+                                          {v.source}
+                                        </span>
+                                      )}
+                                      <span
+                                        className={`text-[10px] px-1.5 py-0.2 rounded shrink-0 font-bold uppercase ${
+                                          v.severity === "CRITICAL"
+                                            ? "bg-rose-950 text-rose-200 border border-rose-600"
+                                            : v.severity === "HIGH"
+                                            ? "bg-rose-900/60 text-rose-300 border border-rose-700"
+                                            : "bg-amber-950 text-amber-300 border border-amber-700"
+                                        }`}
+                                      >
+                                        {v.score ? `${v.severity} (${v.score})` : v.severity || "HIGH"}
                                       </span>
-                                      <span className="text-zinc-400 truncate text-[11px]">
+                                      <span className="text-zinc-300 truncate text-[11px]" title={v.summary}>
                                         {v.summary || "Security vulnerability fix available in upstream release"}
                                       </span>
                                     </div>

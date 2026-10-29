@@ -59,12 +59,21 @@ export function App() {
       }));
 
       setPackages(pkgs);
-      setSummary(scanResult.summary || {
+      const calculatedSummary = scanResult.summary || {
         total_packages: pkgs.length,
         safe_count: pkgs.filter((p) => p.safe).length,
         major_count: pkgs.filter((p) => p.change_type === "major").length,
         pinned_count: pkgs.filter((p) => p.pinned).length,
         security_fix_count: pkgs.filter((p) => p.has_vulnerability).length,
+      };
+      setSummary(calculatedSummary);
+
+      // Default filter priority: Critical/CVEs first, then Safe, else All
+      setActiveFilter((current) => {
+        if (current === "all" || current === "security" || current === "safe") {
+          return hasSecurity ? "security" : "safe";
+        }
+        return current;
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load package information";

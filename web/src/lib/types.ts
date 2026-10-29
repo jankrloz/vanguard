@@ -5,6 +5,8 @@ export interface Vulnerability {
   id: string;
   summary: string;
   severity: string;
+  score?: number;
+  source?: string;
   fixed_in?: string;
   is_mitigated?: boolean;
 }
@@ -20,6 +22,7 @@ export interface Package {
   pinned: boolean;
   selected: boolean;
   description?: string;
+  source_url?: string;
   vulnerabilities?: Vulnerability[];
   has_vulnerability?: boolean;
   max_severity?: string;

@@ -197,17 +197,48 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 					}
 				}
 
+				source := "OSV"
+				if strings.HasPrefix(v.ID, "GHSA-") {
+					source = "GitHub Advisory (GHSA)"
+				} else if strings.HasPrefix(v.ID, "CVE-") {
+					source = "NVD / CVE"
+				} else if strings.HasPrefix(v.ID, "RUSTSEC-") {
+					source = "RustSec (Cargo Audit)"
+				} else if strings.HasPrefix(v.ID, "PYSEC-") {
+					source = "PyPA (Pip Audit)"
+				} else if strings.HasPrefix(v.ID, "GO-") {
+					source = "Go Vulnerability Database"
+				}
+
+				score := 0.0
 				sev := strings.ToUpper(v.DatabaseSpecific.Severity)
+				for _, s := range v.Severity {
+					if strings.Contains(s.Score, "AV:N") && strings.Contains(s.Score, "C:H") && strings.Contains(s.Score, "I:H") {
+						if sev == "" {
+							sev = "CRITICAL"
+						}
+						score = 9.8
+					} else if strings.Contains(s.Score, "AV:N") {
+						if sev == "" {
+							sev = "HIGH"
+						}
+						score = 7.5
+					}
+				}
+
 				if sev == "" {
 					sev = "HIGH"
+				}
+				if sev == "MODERATE" {
+					sev = "MEDIUM"
 				}
 
 				if sev == "CRITICAL" {
 					maxSeverity = "CRITICAL"
 				} else if sev == "HIGH" && maxSeverity != "CRITICAL" {
 					maxSeverity = "HIGH"
-				} else if sev == "MODERATE" && maxSeverity != "CRITICAL" && maxSeverity != "HIGH" {
-					maxSeverity = "MODERATE"
+				} else if (sev == "MEDIUM" || sev == "MODERATE") && maxSeverity != "CRITICAL" && maxSeverity != "HIGH" {
+					maxSeverity = "MEDIUM"
 				}
 
 				// Find fixed version from ranges
@@ -246,6 +277,8 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 					ID:          id,
 					Summary:     summary,
 					Severity:    sev,
+					Score:       score,
+					Source:      source,
 					FixedIn:     fixedIn,
 					IsMitigated: isMitigated,
 				})

@@ -10,11 +10,13 @@ const (
 )
 
 type Vulnerability struct {
-	ID          string `json:"id"`                 // CVE-202X-XXXX or GHSA-XXXX
-	Summary     string `json:"summary"`            // e.g. "Remote Code Execution"
-	Severity    string `json:"severity"`           // "CRITICAL", "HIGH", "MODERATE", "LOW"
-	FixedIn     string `json:"fixed_in,omitempty"` // Version that fixes the CVE
-	IsMitigated bool   `json:"is_mitigated"`       // True if candidate update fixes the CVE
+	ID          string  `json:"id"`                 // CVE-202X-XXXX or GHSA-XXXX
+	Summary     string  `json:"summary"`            // e.g. "Remote Code Execution"
+	Severity    string  `json:"severity"`           // "CRITICAL", "HIGH", "MODERATE", "LOW"
+	Score       float64 `json:"score,omitempty"`    // CVSS Base Score (e.g. 9.8)
+	Source      string  `json:"source,omitempty"`   // NVD, GHSA, RustSec, PyPA, OSV
+	FixedIn     string  `json:"fixed_in,omitempty"` // Version that fixes the CVE
+	IsMitigated bool    `json:"is_mitigated"`       // True if candidate update fixes the CVE
 }
 
 type Package struct {
@@ -28,6 +30,7 @@ type Package struct {
 	Pinned           bool            `json:"pinned"`
 	Selected         bool            `json:"selected"`
 	Description      string          `json:"description,omitempty"`
+	SourceURL        string          `json:"source_url,omitempty"`
 	Vulnerabilities  []Vulnerability `json:"vulnerabilities,omitempty"`
 	HasVulnerability bool            `json:"has_vulnerability"`
 	MaxSeverity      string          `json:"max_severity,omitempty"` // CRITICAL, HIGH, etc.

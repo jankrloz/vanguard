@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -14,6 +15,61 @@ import (
 	"github.com/jankrloz/vanguard/internal/domain"
 	"github.com/jankrloz/vanguard/internal/security"
 )
+
+func packageRank(p domain.Package) int {
+	if p.HasVulnerability {
+		switch strings.ToUpper(p.MaxSeverity) {
+		case "CRITICAL":
+			return 0
+		case "HIGH":
+			return 1
+		case "MODERATE", "MEDIUM":
+			return 2
+		default:
+			return 3
+		}
+	}
+	if p.Safe {
+		return 10
+	}
+	if p.ChangeType == domain.ChangeMajor {
+		return 20
+	}
+	return 30
+}
+
+// DeriveSourceURL maps package manager and package identifier to authoritative registry or repo URL.
+func DeriveSourceURL(manager, name string) string {
+	m := strings.ToLower(manager)
+	switch m {
+	case "brew", "homebrew":
+		return "https://formulae.brew.sh/formula/" + name
+	case "cask":
+		return "https://formulae.brew.sh/cask/" + name
+	case "npm", "pnpm", "yarn", "bun":
+		return "https://www.npmjs.com/package/" + name
+	case "pip", "pipx", "pypi", "uv", "poetry", "pdm":
+		return "https://pypi.org/project/" + name
+	case "cargo", "rust":
+		return "https://crates.io/crates/" + name
+	case "gem", "bundler", "ruby":
+		return "https://rubygems.org/gems/" + name
+	case "go":
+		return "https://pkg.go.dev/" + name
+	case "cpan":
+		return "https://metacpan.org/pod/" + name
+	case "composer", "php":
+		return "https://packagist.org/packages/" + name
+	case "nuget", "dotnet":
+		return "https://www.nuget.org/packages/" + name
+	case "pub", "flutter", "dart":
+		return "https://pub.dev/packages/" + name
+	case "hex", "mix":
+		return "https://hex.pm/packages/" + name
+	default:
+		return ""
+	}
+}
 
 type Scanner struct{}
 
@@ -65,14 +121,14 @@ func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 		}
 	}
 
-	// 5. Sort: vulnerable packages float to the top
-	for i := 0; i < len(packages); i++ {
-		for j := i + 1; j < len(packages); j++ {
-			if !packages[i].HasVulnerability && packages[j].HasVulnerability {
-				packages[i], packages[j] = packages[j], packages[i]
-			}
+	// 5. Sort: Critical/CVEs first, then Safe, then Major
+	sort.SliceStable(packages, func(i, j int) bool {
+		rI, rJ := packageRank(packages[i]), packageRank(packages[j])
+		if rI != rJ {
+			return rI < rJ
 		}
-	}
+		return packages[i].Name < packages[j].Name
+	})
 
 	return &domain.ScanResult{
 		Packages: packages,
@@ -154,6 +210,7 @@ func ParseMPMOutput(r io.Reader) []domain.Package {
 				Safe:           safe,
 				Pinned:         false,
 				Selected:       safe,
+				SourceURL:      DeriveSourceURL(mgr, pkgID),
 			}
 			packages = append(packages, pkg)
 		}
