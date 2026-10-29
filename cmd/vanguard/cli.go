@@ -208,13 +208,17 @@ func runCheck(ctx context.Context, args []string) int {
 func runApply(ctx context.Context, args []string) int {
 	fs := flag.NewFlagSet("apply", flag.ExitOnError)
 	secOnly := fs.Bool("security-only", false, "Upgrade only packages fixing known CVEs")
-	all := fs.Bool("all", false, "Upgrade all outdated packages (including major breaking)")
+	all := fs.Bool("all", false, "Upgrade all safe (minor/patch) and security-fix packages")
+	major := fs.Bool("major", false, "Include major version upgrades (potential breaking changes)")
+	force := fs.Bool("force", false, "Force upgrade all outdated packages including major breaking versions")
 	mgrFilter := fs.String("manager", "", "Target a specific package manager only")
 	autoYes := fs.Bool("yes", false, "Auto-confirm upgrade prompt without interactive input")
 	autoYesShort := fs.Bool("y", false, "Auto-confirm upgrade prompt")
 	_ = fs.Parse(args)
 
 	yes := *autoYes || *autoYesShort
+	includeMajor := *major || *force
+	_ = all
 
 	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
 
@@ -250,11 +254,11 @@ func runApply(ctx context.Context, args []string) int {
 			}
 			continue
 		}
-		if *all {
+		if includeMajor {
 			candidates = append(candidates, p)
 			continue
 		}
-		// Default safe mode: minor, patch, or security fix
+		// Default & --all safe mode: minor, patch, or security fix
 		if p.Safe || p.HasVulnerability {
 			candidates = append(candidates, p)
 		} else if p.ChangeType == domain.ChangeMajor {
@@ -275,7 +279,7 @@ func runApply(ctx context.Context, args []string) int {
 			}
 			fmt.Printf("\n  %s %s\n\n",
 				ui.StyleAmberBold.Render("ℹ"),
-				ui.StyleZinc.Render("Run 'vg apply --all' to upgrade major breaking releases."),
+				ui.StyleZinc.Render("Run 'vg apply --major' (or '--force') to upgrade major breaking releases."),
 			)
 			return 0
 		}
@@ -292,7 +296,7 @@ func runApply(ctx context.Context, args []string) int {
 	if len(skippedMajors) > 0 {
 		fmt.Printf("\n  %s %s\n",
 			ui.StyleAmberBold.Render("ℹ"),
-			ui.StyleZinc.Render(fmt.Sprintf("%d major breaking update(s) held back for safety (pass --all to include).", len(skippedMajors))),
+			ui.StyleZinc.Render(fmt.Sprintf("%d major breaking update(s) held back for safety (pass --major or --force to include).", len(skippedMajors))),
 		)
 	}
 

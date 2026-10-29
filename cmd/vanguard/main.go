@@ -33,7 +33,7 @@ func printUsage() {
 	fmt.Printf("  %s\n", ui.StyleWhiteBold.Render("COMMANDS"))
 	cmds := [][2]string{
 		{"check", "Scan packages and print security status table (exits 1 on urgent CVEs)"},
-		{"apply", "Execute CLI package upgrades directly in terminal (--security-only, --all, -y)"},
+		{"apply", "Execute CLI package upgrades in terminal (--all, --security-only, --major, --force, -y)"},
 		{"history", "View persistent upgrade audit trail (~/.local/state/vanguard/history.jsonl)"},
 		{"sweep", "Run deep system-wide maintenance sweep via Topgrade (git, toolchains, firmware)"},
 		{"monitor", "Run background security monitor daemon with desktop alert notifications"},

@@ -487,8 +487,8 @@
               <td>Scan all managers, run OSV/Trivy/osv-scanner/native audits, print aligned report, exit <code>1</code> on CVEs</td>
             </tr>
             <tr>
-              <td class="mono c-cyan">vg apply [--security-only | --all | -y]</td>
-              <td>Apply safe or security-only updates in the terminal with live progress and post-upgrade verification</td>
+              <td class="mono c-cyan">vg apply [--all | --security-only | --major | --force | -y]</td>
+              <td>Apply safe minor/patch or security updates in the terminal (pass <code>--major</code> or <code>--force</code> to include major breaking releases)</td>
             </tr>
             <tr>
               <td class="mono c-cyan">vg sweep</td>

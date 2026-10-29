@@ -112,6 +112,7 @@ vg check --limit 20
 ```bash
 # Upgrade all safe (minor/patch) and security-fix packages interactively
 vg apply
+vg apply --all -y
 
 # Auto-confirm and apply only security vulnerability fixes
 vg apply --security-only --yes
@@ -119,8 +120,9 @@ vg apply --security-only --yes
 # Upgrade packages for a single package manager
 vg apply --manager pnpm -y
 
-# Upgrade all outdated packages, including major version releases
-vg apply --all -y
+# Explicitly include major breaking version upgrades (--major or --force)
+vg apply --major -y
+vg apply --force -y
 ```
 
 ### System Sweep, Audit History & Continuous Monitoring
