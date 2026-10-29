@@ -19,39 +19,25 @@ func New() *Scanner {
 	return &Scanner{}
 }
 
-// Scan queries mpm to find all outdated packages across all package managers,
-// checks pinned states, and enriches results with OSV.dev CVE intelligence.
+// Scan queries mpm to find all outdated packages across all package managers
+// and enriches results with OSV.dev CVE vulnerability intelligence.
 func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
-	// 1. Discover outdated packages via mpm
+	// 1. Discover outdated packages purely via mpm
 	packages, err := s.scanMPM(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("mpm scan failed: %w", err)
 	}
 
-	// 2. Query pinned packages from brew (fast 10ms lookup)
-	pinnedSet := s.getPinnedBrewPackages(ctx)
-
-	safeCount := 0
-	majorCount := 0
-	pinnedCount := 0
-	securityFixCount := 0
-
-	for i := range packages {
-		if pinnedSet[packages[i].Name] {
-			packages[i].Pinned = true
-			packages[i].Selected = false
-		}
-	}
-
-	// 3. Enrich with OSV.dev vulnerability intelligence
+	// 2. Enrich with OSV.dev vulnerability intelligence
 	advisor := security.NewAdvisor()
 	packages = advisor.EnrichPackages(ctx, packages)
 
-	// 4. Calculate summaries
+	safeCount := 0
+	majorCount := 0
+	securityFixCount := 0
+
+	// 3. Calculate summaries
 	for _, p := range packages {
-		if p.Pinned {
-			pinnedCount++
-		}
 		if p.Safe {
 			safeCount++
 		}
@@ -63,7 +49,7 @@ func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 		}
 	}
 
-	// 5. Sort: vulnerable packages float to the top
+	// 4. Sort: vulnerable packages float to the top
 	for i := 0; i < len(packages); i++ {
 		for j := i + 1; j < len(packages); j++ {
 			if !packages[i].HasVulnerability && packages[j].HasVulnerability {
@@ -78,7 +64,7 @@ func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 			TotalPackages:    len(packages),
 			SafeCount:        safeCount,
 			MajorCount:       majorCount,
-			PinnedCount:      pinnedCount,
+			PinnedCount:      0,
 			SecurityFixCount: securityFixCount,
 		},
 	}, nil
@@ -147,22 +133,4 @@ func (s *Scanner) scanMPM(ctx context.Context) ([]domain.Package, error) {
 	}
 
 	return packages, nil
-}
-
-func (s *Scanner) getPinnedBrewPackages(ctx context.Context) map[string]bool {
-	pinned := make(map[string]bool)
-	cmd := exec.CommandContext(ctx, "brew", "list", "--pinned")
-	out, err := cmd.Output()
-	if err != nil {
-		return pinned
-	}
-
-	scanner := bufio.NewScanner(bytes.NewReader(out))
-	for scanner.Scan() {
-		pkg := strings.TrimSpace(scanner.Text())
-		if pkg != "" {
-			pinned[pkg] = true
-		}
-	}
-	return pinned
 }
