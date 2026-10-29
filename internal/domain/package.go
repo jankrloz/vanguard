@@ -9,24 +9,34 @@ const (
 	ChangeUnknown ChangeType = "unknown"
 )
 
+type Vulnerability struct {
+	ID       string `json:"id"`       // CVE-202X-XXXX or GHSA-XXXX
+	Summary  string `json:"summary"`  // e.g. "Remote Code Execution"
+	Severity string `json:"severity"` // "CRITICAL", "HIGH", "MODERATE", "LOW"
+}
+
 type Package struct {
-	ID             string     `json:"id"`
-	Name           string     `json:"name"`
-	Manager        string     `json:"manager"`
-	CurrentVersion string     `json:"current_version"`
-	LatestVersion  string     `json:"latest_version"`
-	ChangeType     ChangeType `json:"change_type"`
-	Safe           bool       `json:"safe"`
-	Pinned         bool       `json:"pinned"`
-	Selected       bool       `json:"selected"`
-	Description    string     `json:"description,omitempty"`
+	ID               string          `json:"id"`
+	Name             string          `json:"name"`
+	Manager          string          `json:"manager"`
+	CurrentVersion   string          `json:"current_version"`
+	LatestVersion    string          `json:"latest_version"`
+	ChangeType       ChangeType      `json:"change_type"`
+	Safe             bool            `json:"safe"`
+	Pinned           bool            `json:"pinned"`
+	Selected         bool            `json:"selected"`
+	Description      string          `json:"description,omitempty"`
+	Vulnerabilities  []Vulnerability `json:"vulnerabilities,omitempty"`
+	HasVulnerability bool            `json:"has_vulnerability"`
+	MaxSeverity      string          `json:"max_severity,omitempty"` // CRITICAL, HIGH, etc.
 }
 
 type ScanSummary struct {
-	TotalPackages int `json:"total_packages"`
-	SafeCount     int `json:"safe_count"`
-	MajorCount    int `json:"major_count"`
-	PinnedCount   int `json:"pinned_count"`
+	TotalPackages    int `json:"total_packages"`
+	SafeCount        int `json:"safe_count"`
+	MajorCount       int `json:"major_count"`
+	PinnedCount      int `json:"pinned_count"`
+	SecurityFixCount int `json:"security_fix_count"`
 }
 
 type ScanResult struct {
@@ -39,7 +49,7 @@ type UpgradeRequest struct {
 }
 
 type UpgradeEvent struct {
-	Type    string `json:"type"`    // "start", "log", "package_start", "package_done", "complete", "error"
+	Type    string `json:"type"` // "start", "log", "package_start", "package_done", "complete", "error"
 	Package string `json:"package,omitempty"`
 	Message string `json:"message"`
 	Status  string `json:"status,omitempty"` // "ok", "failed", "running"

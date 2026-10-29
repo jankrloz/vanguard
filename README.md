@@ -1,29 +1,26 @@
 # Vanguard (`vg` / `up`)
 
-> **Interactive, biometric-secured package update orchestrator & dashboard for macOS & Linux.**  
-> Keep your system and developer toolchains perpetually up-to-date with zero noise, Touch ID biometric priming, and strict SemVer breaking-change guards.
+> **Interactive, biometric-secured vulnerability shield & package orchestrator for macOS & Linux.**  
+> Detects and prioritizes urgent CVE/zero-day patches across 20+ package managers, enforces strict SemVer breaking-change guards, primes Touch ID once, and streams real-time execution logs.
 
 ---
 
-## ⚡ The Problem
+## ⚡ The Mission: Vulnerability Shield First
 
-Modern dev machines accumulate dozens of package managers (`brew`, `cask`, `npm`, `pnpm`, `mise`, `uv`, `pip`, `gcloud`, `mas`).  
-Existing solutions fall short in three major ways:
-1. **Log noise:** Terminal scripts produce hundreds of lines of intermediate garbage, cleanup logs, and transient warnings.
-2. **Blind mass-upgrades:** Tools like `topgrade` or `brew upgrade` apply major breaking updates automatically without interactive triage.
-3. **Password friction:** Repeated, blocking terminal sudo password prompts that break biometric Touch ID integrations (`pam_tid.so`).
+Modern dev workstations run hundreds of dependencies across system package managers (`brew`, `cask`), language runtimes (`mise`, `uv`, `pip`), and package ecosystems (`npm`, `pnpm`, `gcloud`, `mas`).  
+When critical vulnerabilities emerge (such as zero-days, RCEs, prototype pollution, or supply-chain poisoning):
+1. **Security blindness:** Developers delay updates because terminal updaters either dump an avalanche of noisy logs or force risky major breaking changes.
+2. **Delayed patching:** Routine updates hide critical security patches in a flat list.
+3. **Password friction:** Repeated, blocking terminal sudo password prompts break focus and biometric Touch ID (`pam_tid.so`).
 
-**Vanguard** solves this by serving an ephemeral, high-contrast local web dashboard backed by a native Go engine that inspects pending updates across 20+ package managers, categorizes them by SemVer impact, primes Touch ID once, and streams upgrade logs in real time.
-
----
-
-## ✨ Features
-
+**Vanguard** transforms system updating into a proactive security habit:
+- **🚨 Urgent CVE & Zero-Day Prioritization:** Live integration with **OSV.dev** (Open Source Vulnerabilities) automatically scans every outdated package against known CVEs and GHSAs, calculates CVSS severity, bubbles vulnerable packages to the top, and marks them for urgent 1-click remediation.
 - **🛡️ Touch ID Biometric Priming & Keepalive:** Primes root permissions once at launch via macOS Touch ID (`pam_tid.so`) and maintains background credentials (`sudo -n true` every 40s) so terminal prompts never interrupt the workflow.
 - **🚦 SemVer Breaking-Change Guard:**
-  - **Safe Updates (Patch & Minor):** Auto-checked for 1-click execution.
-  - **Major Releases:** Highlighted with warning indicators and unselected by default to prevent unexpected API/CLI breakages.
-- **🌐 20+ Package Managers Unified:** Powered by `meta-package-manager` (`mpm`) and native Homebrew (`brew`) JSON inspection. Dispatches targeted commands per package manager.
+  - **Urgent Security Fixes:** Highlighted with pulsing danger badges and pre-checked.
+  - **Routine Safe Updates (Patch & Minor):** Auto-checked for safe 1-click execution.
+  - **Major Releases:** Unselected by default with warning callouts to prevent breaking APIs or CLIs.
+- **🌐 20+ Package Managers Unified:** Dispatches granular upgrade commands across `brew`, `cask`, `mise`, `uv`, `pnpm`, `npm`, `mas`, `gcloud`, etc.
 - **⚡ Ephemeral Web Dashboard:** Built with **Vite+**, **React 19**, **Tailwind CSS v4**, and **Lucide Icons** following substance-first, quiet-chrome UI principles.
 - **📡 Real-Time SSE Log Streaming:** Execution logs stream directly from child processes to a collapsible terminal drawer via Server-Sent Events.
 - **📦 Single Self-Contained Binary:** Go `embed.FS` packs all compiled HTML/JS/CSS assets inside an 11MB standalone executable with zero runtime dependencies.
@@ -43,8 +40,8 @@ Existing solutions fall short in three major ways:
 │                  Vanguard Go Engine                    │
 │                                                        │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌───────┐  │
-│  │ Touch ID Sudo    │  │ SemVer Classifier│  │ Server│  │
-│  │ Priming & Keep   │  │ Patch/Minor/Major│  │ Embed │  │
+│  │ Touch ID Sudo    │  │ OSV.dev CVE      │  │ Server│  │
+│  │ Priming & Keep   │  │ Advisor & SemVer │  │ Embed │  │
 │  └────────▲─────────┘  └────────▲─────────┘  └───────┘  │
 └───────────┼─────────────────────┼──────────────────────┘
             │                     │
@@ -72,17 +69,17 @@ cd ~/dev/personal/vanguard
 # Build frontend and compile standalone binary
 task build
 
-# Install to ~/.local/bin/up (or ~/.local/bin/vg)
+# Install to ~/.local/bin/vanguard (with vg and up symlinks)
 task install
 ```
 
 ### Running Vanguard
-```bash
-# Launch interactive dashboard (prompts Touch ID, launches browser)
+```fish
+# In any terminal (launches interactive dashboard with Touch ID)
 vg
 
-# Or with custom port / options
-vg --port 9099 --no-open
+# Or using the classic alias
+up
 ```
 
 ---

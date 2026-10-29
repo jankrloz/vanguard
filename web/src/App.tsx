@@ -20,6 +20,7 @@ export function App() {
     safe_count: 0,
     major_count: 0,
     pinned_count: 0,
+    security_fix_count: 0,
   });
 
   const [isScanning, setIsScanning] = useState(false);
@@ -40,13 +41,14 @@ export function App() {
 
       if (sysStatus) setStatus(sysStatus);
 
-      // Normalize package selection
+      // Normalize package selection: preselect safe OR vulnerable packages
       const pkgs = (scanResult.packages || []).map((p) => {
         const safe = p.Safe !== undefined ? p.Safe : p.safe;
         const pinned = p.Pinned !== undefined ? p.Pinned : p.pinned;
+        const hasVuln = p.HasVulnerability || p.has_vulnerability;
         return {
           ...p,
-          selected: safe && !pinned,
+          selected: (safe || hasVuln) && !pinned,
         };
       });
 
@@ -56,6 +58,7 @@ export function App() {
         safe_count: pkgs.filter((p) => p.Safe || p.safe).length,
         major_count: pkgs.filter((p) => (p.ChangeType || p.change_type) === "major").length,
         pinned_count: pkgs.filter((p) => p.Pinned || p.pinned).length,
+        security_fix_count: pkgs.filter((p) => p.HasVulnerability || p.has_vulnerability).length,
       });
     } catch (err: any) {
       setError(err?.message || "Failed to load package information");
@@ -103,6 +106,16 @@ export function App() {
         const safe = p.Safe !== undefined ? p.Safe : p.safe;
         const pinned = p.Pinned !== undefined ? p.Pinned : p.pinned;
         return { ...p, selected: safe && !pinned };
+      })
+    );
+  };
+
+  const handleSelectSecurity = () => {
+    setPackages((prev) =>
+      prev.map((p) => {
+        const hasVuln = p.HasVulnerability || p.has_vulnerability;
+        const pinned = p.Pinned !== undefined ? p.Pinned : p.pinned;
+        return { ...p, selected: Boolean(hasVuln && !pinned) };
       })
     );
   };
@@ -157,6 +170,7 @@ export function App() {
       <Header
         status={status}
         selectedCount={selectedCount}
+        securityCount={summary.security_fix_count}
         isScanning={isScanning}
         isUpgrading={isUpgrading}
         onScan={() => loadData(true)}
@@ -186,6 +200,7 @@ export function App() {
           packages={packages}
           onTogglePackage={handleTogglePackage}
           onSelectSafe={handleSelectSafe}
+          onSelectSecurity={handleSelectSecurity}
           onSelectAll={handleSelectAll}
           onDeselectAll={handleDeselectAll}
         />
@@ -198,7 +213,7 @@ export function App() {
           className="fixed bottom-4 right-6 z-30 font-mono text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80 px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2 transition-all cursor-pointer"
         >
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>View Terminal Logs ({events.length})</span>
+          <span>View Execution Logs ({events.length})</span>
         </button>
       )}
 
