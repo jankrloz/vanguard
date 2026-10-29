@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FC } from "react";
-import { Terminal, ChevronDown, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Terminal, ChevronDown, CheckCircle2, XCircle, Loader2, Copy, Check } from "lucide-react";
 import type { UpgradeEvent } from "../lib/types";
 
 interface LogDrawerProps {
@@ -34,6 +34,18 @@ export const LogDrawer: FC<LogDrawerProps> = ({
     }
   }, [events, autoScroll]);
 
+  // Escape closes drawer
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isUpgrading) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, isUpgrading, onClose]);
+
   if (!isOpen) return null;
 
   const lastEvent = events[events.length - 1];
@@ -52,49 +64,64 @@ export const LogDrawer: FC<LogDrawerProps> = ({
 
           {/* Status Indicator */}
           {isUpgrading && !isComplete ? (
-            <span className="flex items-center gap-1.5 text-[11px] font-mono text-amber-400 bg-amber-950/60 border border-amber-800/60 px-2 py-0.5 rounded">
-              <Loader2 className="w-3 h-3 animate-spin" /> Running
+            <span className="flex items-center gap-1.5 text-[10px] font-mono font-semibold text-amber-300 bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded">
+              <Loader2 className="w-3 h-3 animate-spin text-amber-400" /> Running
             </span>
           ) : isComplete ? (
-            <span className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded">
-              <CheckCircle2 className="w-3 h-3" /> Done
+            <span className="flex items-center gap-1.5 text-[10px] font-mono font-semibold text-emerald-300 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">
+              <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Done
             </span>
           ) : isError ? (
-            <span className="flex items-center gap-1.5 text-[11px] font-mono text-rose-400 bg-rose-950/60 border border-rose-800/60 px-2 py-0.5 rounded">
-              <XCircle className="w-3 h-3" /> Error
+            <span className="flex items-center gap-1.5 text-[10px] font-mono font-semibold text-rose-300 bg-rose-950/60 border border-rose-800/80 px-2 py-0.5 rounded">
+              <XCircle className="w-3 h-3 text-rose-400" /> Error
             </span>
           ) : null}
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-400 cursor-pointer mr-2">
+          <label className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-400 cursor-pointer mr-2 select-none">
             <input
               type="checkbox"
               checked={autoScroll}
               onChange={(e) => setAutoScroll(e.target.checked)}
-              className="rounded bg-zinc-900 border-zinc-700 text-zinc-300 focus:ring-0"
+              className="rounded bg-zinc-900 border-zinc-700 text-zinc-300 focus:ring-0 cursor-pointer"
             />
             Auto-scroll
           </label>
 
           <button
+            type="button"
             onClick={handleCopy}
             disabled={events.length === 0}
-            className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-800/80 hover:bg-zinc-800 px-2 py-1 rounded disabled:opacity-40"
+            className="flex items-center gap-1 text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-800/80 hover:bg-zinc-800 px-2 py-1 rounded-md transition-colors disabled:opacity-40 cursor-pointer"
+            title="Copy logs to clipboard"
           >
-            {copied ? "Copied ✓" : "Copy"}
+            {copied ? (
+              <>
+                <Check className="w-3 h-3 text-emerald-400" />
+                <span>Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3 h-3" />
+                <span>Copy</span>
+              </>
+            )}
           </button>
 
           <button
+            type="button"
             onClick={onClear}
-            className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-800/80 hover:bg-zinc-800 px-2 py-1 rounded"
+            className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-800/80 hover:bg-zinc-800 px-2 py-1 rounded-md transition-colors cursor-pointer"
           >
             Clear
           </button>
 
           <button
+            type="button"
             onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-200 p-1 rounded"
+            className="text-zinc-400 hover:text-zinc-200 p-1 rounded-md hover:bg-zinc-800 transition-colors cursor-pointer"
+            title="Close log drawer (Esc)"
           >
             <ChevronDown className="w-4 h-4" />
           </button>
@@ -102,7 +129,7 @@ export const LogDrawer: FC<LogDrawerProps> = ({
       </div>
 
       {/* Terminal Content */}
-      <div className="p-4 font-mono text-xs overflow-y-auto space-y-1 bg-black/60 min-h-[180px] max-h-[400px]">
+      <div className="p-4 font-mono text-xs overflow-y-auto space-y-1 bg-black/70 min-h-[180px] max-h-[420px] selection:bg-zinc-700">
         {events.length === 0 ? (
           <div className="text-zinc-500 italic">No output yet. Trigger an action to stream execution logs.</div>
         ) : (
@@ -129,7 +156,7 @@ export const LogDrawer: FC<LogDrawerProps> = ({
                     : "text-zinc-300"
                 }`}
               >
-                <span className="text-zinc-600 select-none mr-2">›</span>
+                <span className="text-zinc-600 select-none mr-2 font-light">›</span>
                 {ev.message}
               </div>
             );

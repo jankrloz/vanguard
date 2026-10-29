@@ -31,6 +31,18 @@ export const HistoryModal: FC<HistoryModalProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
+  // Escape key closes modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const filtered = entries.filter((e) => {
@@ -53,29 +65,32 @@ export const HistoryModal: FC<HistoryModalProps> = ({ isOpen, onClose }) => {
         className="bg-zinc-950 border border-zinc-800 rounded-xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden cursor-default"
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
+        <div className="px-5 py-3.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
           <div className="flex items-center gap-2.5">
             <History className="w-4 h-4 text-zinc-300" />
-            <h2 className="text-sm font-semibold text-zinc-100 tracking-tight">
+            <h2 className="text-sm font-semibold text-zinc-100 font-mono tracking-tight">
               Audit Upgrade History
             </h2>
-            <span className="text-[11px] font-mono text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">
+            <span className="text-[10px] font-mono text-zinc-400 bg-zinc-800/80 border border-zinc-700/50 px-2 py-0.5 rounded">
               {entries.length} records
             </span>
           </div>
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={load}
               disabled={loading}
               title="Refresh history"
-              className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors"
+              className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-zinc-200" : ""}`} />
             </button>
             <button
+              type="button"
               onClick={onClose}
-              className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors"
+              className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors cursor-pointer"
+              title="Close (Esc)"
             >
               <X className="w-4 h-4" />
             </button>
@@ -108,7 +123,7 @@ export const HistoryModal: FC<HistoryModalProps> = ({ isOpen, onClose }) => {
               return (
                 <div
                   key={idx}
-                  className="px-6 py-3 flex items-center justify-between gap-4 hover:bg-zinc-900/40 transition-colors"
+                  className="px-5 py-2.5 flex items-center justify-between gap-4 hover:bg-zinc-900/40 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     {isOk ? (
@@ -126,19 +141,19 @@ export const HistoryModal: FC<HistoryModalProps> = ({ isOpen, onClose }) => {
                           {item.manager}
                         </span>
                       </div>
-                      <div className="text-[11px] text-zinc-500">{timeStr}</div>
+                      <div className="text-[10px] text-zinc-500">{timeStr}</div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 shrink-0">
-                    <div className="text-right text-[11px]">
+                  <div className="flex items-center gap-3.5 shrink-0">
+                    <div className="text-right text-[11px] tabular-nums">
                       <span className="text-zinc-400">{item.from_version}</span>
-                      <span className="text-zinc-600 mx-1.5">→</span>
+                      <span className="text-zinc-600 mx-1.5 select-none">→</span>
                       <span className="text-zinc-200 font-medium">{item.to_version}</span>
                     </div>
 
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
                         isOk
                           ? "bg-emerald-950/80 text-emerald-300 border border-emerald-800"
                           : "bg-rose-950/80 text-rose-300 border border-rose-800"

@@ -28,99 +28,119 @@ export const Header: FC<HeaderProps> = ({
   onOpenHistory,
 }) => {
   return (
-    <header className="border-b border-zinc-800/80 bg-zinc-950/70 backdrop-blur px-6 py-4 sticky top-0 z-30">
+    <header className="border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md px-6 py-3.5 sticky top-0 z-30">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-zinc-900 border border-zinc-700/60 flex items-center justify-center font-mono font-bold text-sm text-zinc-100 shadow-inner">
+          <div className="w-8 h-8 rounded-md bg-zinc-900 border border-zinc-700/70 flex items-center justify-center font-mono font-bold text-sm text-zinc-100 shadow-inner">
             ▲
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-semibold tracking-tight text-zinc-100">VANGUARD</h1>
-              <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 bg-zinc-800/80 border border-zinc-700/50 px-1.5 py-0.5 rounded">
+              <h1 className="text-sm font-semibold tracking-tight text-zinc-100 font-mono">VANGUARD</h1>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 bg-zinc-800/80 border border-zinc-700/50 px-1.5 py-0.2 rounded">
                 {status?.version ? `v${status.version}` : "v0.1.2"}
               </span>
               {securityCount > 0 && (
-                <span className="flex items-center gap-1 text-[11px] font-mono font-semibold text-rose-300 bg-rose-950/90 border border-rose-800 px-2 py-0.5 rounded animate-pulse">
+                <span className="flex items-center gap-1 text-[10px] font-mono font-semibold text-rose-300 bg-rose-950/90 border border-rose-800 px-2 py-0.5 rounded">
                   <Flame className="w-3 h-3 text-rose-400" />
                   {securityCount} CVE {securityCount === 1 ? "Fix" : "Fixes"} Urgent
                 </span>
               )}
             </div>
-            <p className="text-xs text-zinc-400">Vulnerability Shield & Package Controller</p>
+            <p className="text-[11px] text-zinc-400">Vulnerability Shield & Package Controller</p>
           </div>
         </div>
 
-        {/* Center: Elevation Status */}
-        <div className="hidden md:flex items-center gap-2 text-xs font-mono bg-zinc-900/90 border border-zinc-800 px-3 py-1.5 rounded-full">
+        {/* Center: Elevation & Platform Status */}
+        <div className="hidden lg:flex items-center gap-2.5 text-[11px] font-mono bg-zinc-900/80 border border-zinc-800/90 px-3 py-1 rounded-full">
           {status?.sudo_active ? (
             <>
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-zinc-300">Privilege Keepalive:</span>
+              <span className="text-zinc-400">Elevation Keepalive:</span>
               <span className="text-emerald-400 font-medium">Active</span>
             </>
           ) : (
             <>
               <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-zinc-400">Privileges:</span>
-              <span className="text-amber-400">Standard</span>
+              <span className="text-zinc-400">Elevation:</span>
+              <span className="text-amber-400">User mode</span>
             </>
           )}
+          <span className="text-zinc-700">|</span>
+          <span className="text-zinc-400">{status?.platform || "darwin"}</span>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onOpenHistory}
-            title="View upgrade audit history"
-            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800/80 border border-zinc-800 px-2.5 py-1.5 rounded-md transition-colors"
-          >
-            <History className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">History</span>
-          </button>
+        <div className="flex items-center gap-3">
+          {/* Secondary Utilities */}
+          <div className="flex items-center bg-zinc-900/80 border border-zinc-800 rounded-lg p-0.5">
+            <button
+              type="button"
+              onClick={onOpenHistory}
+              title="Audit history of upgraded packages"
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 px-2.5 py-1.5 rounded-md transition-colors cursor-pointer"
+            >
+              <History className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="hidden sm:inline">History</span>
+            </button>
 
-          <button
-            onClick={onTopgrade}
-            disabled={isUpgrading}
-            title="Run deep system-wide sweep via Topgrade"
-            className="flex items-center gap-1.5 text-xs text-amber-300 hover:text-amber-100 bg-amber-950/40 hover:bg-amber-900/50 border border-amber-800/60 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-50"
-          >
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Sweep</span>
-          </button>
+            <button
+              type="button"
+              onClick={onTopgrade}
+              disabled={isUpgrading}
+              title="Run deep system-wide sweep via Topgrade"
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-amber-300 hover:bg-zinc-800/80 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-40 cursor-pointer"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Sweep</span>
+            </button>
 
-          <button
-            onClick={onClean}
-            disabled={isUpgrading}
-            title="Clean package caches, old versions, and logs"
-            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800/80 border border-zinc-800 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-50"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Clean</span>
-          </button>
+            <button
+              type="button"
+              onClick={onClean}
+              disabled={isUpgrading}
+              title="Clean package caches, old versions, and logs"
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-40 cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="hidden sm:inline">Clean</span>
+            </button>
+          </div>
 
-          <button
-            onClick={onScan}
-            disabled={isScanning || isUpgrading}
-            className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/70 px-3 py-1.5 rounded-md transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? "animate-spin text-zinc-400" : ""}`} />
-            <span>{isScanning ? "Scanning..." : "Refresh"}</span>
-          </button>
+          {/* Primary Action Controls */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onScan}
+              disabled={isScanning || isUpgrading}
+              title="Rescan system for outdated packages"
+              className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? "animate-spin text-zinc-400" : ""}`} />
+              <span>{isScanning ? "Scanning..." : "Rescan"}</span>
+            </button>
 
-          <button
-            onClick={onUpgrade}
-            disabled={selectedCount === 0 || isUpgrading}
-            className={`flex items-center gap-2 text-xs font-medium px-4 py-1.5 rounded-md transition-all shadow-sm ${
-              selectedCount > 0 && !isUpgrading
-                ? "bg-zinc-100 hover:bg-white text-zinc-950 font-semibold cursor-pointer"
-                : "bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-800"
-            }`}
-          >
-            <ArrowUpCircle className="w-4 h-4" />
-            <span>{isUpgrading ? "Upgrading..." : `Upgrade (${selectedCount})`}</span>
-          </button>
+            <button
+              type="button"
+              onClick={onUpgrade}
+              disabled={selectedCount === 0 || isUpgrading}
+              title={selectedCount > 0 ? "Upgrade selected packages (⌘↵)" : "Select packages to upgrade"}
+              className={`flex items-center gap-2 text-xs font-semibold px-4 py-1.5 rounded-lg transition-all shadow-sm ${
+                selectedCount > 0 && !isUpgrading
+                  ? "bg-zinc-100 hover:bg-white text-zinc-950 cursor-pointer hover:shadow-zinc-500/10"
+                  : "bg-zinc-800/80 text-zinc-500 cursor-not-allowed border border-zinc-800"
+              }`}
+            >
+              <ArrowUpCircle className="w-4 h-4" />
+              <span>{isUpgrading ? "Upgrading..." : `Upgrade (${selectedCount})`}</span>
+              {selectedCount > 0 && !isUpgrading && (
+                <kbd className="hidden sm:inline text-[10px] font-mono bg-zinc-300 text-zinc-800 px-1 py-0.2 rounded font-normal">
+                  ⌘↵
+                </kbd>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </header>

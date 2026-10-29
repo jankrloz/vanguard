@@ -13,11 +13,12 @@ import {
   togglePin,
   subscribeToEvents,
 } from "./lib/api";
-import type { Package, ScanSummary, SystemStatus, UpgradeEvent } from "./lib/types";
+import type { Package, ScanSummary, SystemStatus, UpgradeEvent, FilterType } from "./lib/types";
 
 export function App() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [packages, setPackages] = useState<Package[]>([]);
+  const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [summary, setSummary] = useState<ScanSummary>({
     total_packages: 0,
     safe_count: 0,
@@ -99,6 +100,19 @@ export function App() {
     );
   };
 
+  const handleToggleManagerSelection = (manager: string) => {
+    setPackages((prev) => {
+      const managerPkgs = prev.filter((p) => p.manager === manager && !p.pinned);
+      const allSelected = managerPkgs.length > 0 && managerPkgs.every((p) => p.selected);
+      return prev.map((p) => {
+        if (p.manager === manager && !p.pinned) {
+          return { ...p, selected: !allSelected };
+        }
+        return p;
+      });
+    });
+  };
+
   const handleSelectSafe = () => {
     setPackages((prev) =>
       prev.map((p) => ({ ...p, selected: p.safe && !p.pinned }))
@@ -122,8 +136,8 @@ export function App() {
   };
 
   const handleUpgrade = async () => {
-    const selected = packages.filter((p) => p.selected);
-    if (selected.length === 0) return;
+    const selected = packages.filter((p) => p.selected && !p.pinned);
+    if (selected.length === 0 || isUpgrading) return;
 
     setIsUpgrading(true);
     setIsLogOpen(true);
@@ -192,7 +206,21 @@ export function App() {
     }
   };
 
-  const selectedCount = packages.filter((p) => p.selected).length;
+  const selectedCount = packages.filter((p) => p.selected && !p.pinned).length;
+
+  // Keyboard shortcut: Cmd/Ctrl + Enter triggers upgrade
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        if (selectedCount > 0 && !isUpgrading) {
+          e.preventDefault();
+          handleUpgrade();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedCount, isUpgrading, packages]);
 
   return (
     <div className="min-h-screen bg-[#0c0d0e] text-zinc-100 flex flex-col selection:bg-zinc-800">
@@ -209,42 +237,52 @@ export function App() {
         onOpenHistory={() => setIsHistoryOpen(true)}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-6 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-5 space-y-4">
         {/* Error notification */}
         {error && (
           <div className="bg-rose-950/70 border border-rose-800/80 rounded-lg p-3 text-xs text-rose-300 flex items-center justify-between">
             <span>{error}</span>
             <button
+              type="button"
               onClick={() => setError(null)}
-              className="text-rose-400 hover:text-rose-200 font-mono text-[11px]"
+              className="text-rose-400 hover:text-rose-200 font-mono text-[11px] cursor-pointer"
             >
               Dismiss
             </button>
           </div>
         )}
 
-        {/* Metrics Strip */}
-        <MetricBar summary={summary} selectedCount={selectedCount} />
+        {/* Metrics Strip with interactive filter triggers */}
+        <MetricBar
+          summary={summary}
+          selectedCount={selectedCount}
+          activeFilter={activeFilter}
+          onFilterChange={setActiveFilter}
+        />
 
         {/* Package Table & Controls */}
         <PackageTable
           packages={packages}
+          activeFilter={activeFilter}
+          onFilterChange={setActiveFilter}
           onTogglePackage={handleTogglePackage}
           onTogglePin={handleTogglePin}
           onSelectSafe={handleSelectSafe}
           onSelectSecurity={handleSelectSecurity}
           onSelectAll={handleSelectAll}
           onDeselectAll={handleDeselectAll}
+          onToggleManagerSelection={handleToggleManagerSelection}
         />
       </main>
 
       {/* Floating Log Drawer Trigger when closed */}
       {!isLogOpen && events.length > 0 && (
         <button
+          type="button"
           onClick={() => setIsLogOpen(true)}
           className="fixed bottom-4 right-6 z-30 font-mono text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80 px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2 transition-all cursor-pointer"
         >
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
           <span>View Execution Logs ({events.length})</span>
         </button>
       )}
@@ -266,4 +304,5 @@ export function App() {
     </div>
   );
 }
+
 export default App;

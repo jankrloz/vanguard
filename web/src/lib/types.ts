@@ -1,4 +1,5 @@
 export type ChangeType = "patch" | "minor" | "major" | "unknown";
+export type FilterType = "all" | "security" | "safe" | "major" | "pinned";
 
 export interface Vulnerability {
   id: string;

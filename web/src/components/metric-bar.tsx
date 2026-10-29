@@ -1,111 +1,185 @@
 import type { FC } from "react";
-import { Flame } from "lucide-react";
-import type { ScanSummary } from "../lib/types";
+import { ShieldAlert, ShieldCheck, AlertTriangle, Pin, Package as PackageIcon } from "lucide-react";
+import type { ScanSummary, FilterType } from "../lib/types";
 
 interface MetricBarProps {
   summary: ScanSummary;
   selectedCount: number;
+  activeFilter: FilterType;
+  onFilterChange: (filter: FilterType) => void;
 }
 
-export const MetricBar: FC<MetricBarProps> = ({ summary, selectedCount }) => {
+export const MetricBar: FC<MetricBarProps> = ({
+  summary,
+  selectedCount,
+  activeFilter,
+  onFilterChange,
+}) => {
+  const handleCardClick = (target: FilterType) => {
+    if (activeFilter === target && target !== "all") {
+      onFilterChange("all");
+    } else {
+      onFilterChange(target);
+    }
+  };
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-      {/* Total */}
-      <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-lg p-3.5 flex flex-col justify-between">
-        <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
-          Pending Updates
-        </span>
-        <div className="flex items-baseline justify-between mt-2">
-          <span className="text-2xl font-mono font-semibold text-zinc-100">
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
+      {/* 1. Pending Updates (All) */}
+      <button
+        type="button"
+        onClick={() => handleCardClick("all")}
+        className={`text-left rounded-lg p-3 flex flex-col justify-between border transition-all cursor-pointer ${
+          activeFilter === "all"
+            ? "bg-zinc-900 border-zinc-500 ring-1 ring-zinc-500/20"
+            : "bg-zinc-900/50 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/80"
+        }`}
+      >
+        <div className="flex items-center justify-between w-full">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+            <PackageIcon className="w-3.5 h-3.5 text-zinc-400" />
+            Pending Updates
+          </span>
+          {activeFilter === "all" && (
+            <span className="w-1.5 h-1.5 rounded-full bg-zinc-300"></span>
+          )}
+        </div>
+        <div className="flex items-baseline justify-between mt-2.5">
+          <span className="text-2xl font-mono font-semibold tabular-nums text-zinc-100">
             {summary.total_packages}
           </span>
-          <span className="text-xs font-mono text-zinc-400">
+          <span className="text-[11px] font-mono text-zinc-400">
             {selectedCount} selected
           </span>
         </div>
-      </div>
+      </button>
 
-      {/* Security CVEs */}
-      <div
-        className={`rounded-lg p-3.5 flex flex-col justify-between border transition-all ${
-          summary.security_fix_count > 0
-            ? "bg-rose-950/40 border-rose-800/80 shadow-[0_0_15px_rgba(244,63,94,0.1)]"
-            : "bg-zinc-900/60 border-zinc-800/80"
+      {/* 2. Security Advisories (CVEs) */}
+      <button
+        type="button"
+        onClick={() => handleCardClick("security")}
+        className={`text-left rounded-lg p-3 flex flex-col justify-between border transition-all cursor-pointer ${
+          activeFilter === "security"
+            ? "bg-rose-950/60 border-rose-500 ring-1 ring-rose-500/30"
+            : summary.security_fix_count > 0
+            ? "bg-rose-950/20 border-rose-800/60 hover:border-rose-700 hover:bg-rose-950/40"
+            : "bg-zinc-900/50 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/80"
         }`}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between w-full">
           <span
-            className={`text-[11px] font-mono uppercase tracking-wider ${
-              summary.security_fix_count > 0 ? "text-rose-400 font-bold flex items-center gap-1" : "text-zinc-400"
+            className={`text-[11px] font-mono uppercase tracking-wider flex items-center gap-1.5 ${
+              summary.security_fix_count > 0 ? "text-rose-400 font-semibold" : "text-zinc-400"
             }`}
           >
-            {summary.security_fix_count > 0 && <Flame className="w-3 h-3 text-rose-400 animate-bounce" />}
-            CVE / Zero-Day Fixes
+            <ShieldAlert className={`w-3.5 h-3.5 ${summary.security_fix_count > 0 ? "text-rose-400" : "text-zinc-500"}`} />
+            CVE Fixes
           </span>
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              summary.security_fix_count > 0 ? "bg-rose-500 animate-ping" : "bg-zinc-600"
-            }`}
-          ></span>
+          <div className="flex items-center gap-1.5">
+            {summary.security_fix_count > 0 && (
+              <span className="text-[10px] font-mono font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1 rounded">
+                CRITICAL
+              </span>
+            )}
+            {activeFilter === "security" && (
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+            )}
+          </div>
         </div>
-        <div className="flex items-baseline justify-between mt-2">
+        <div className="flex items-baseline justify-between mt-2.5">
           <span
-            className={`text-2xl font-mono font-semibold ${
-              summary.security_fix_count > 0 ? "text-rose-400 font-extrabold" : "text-zinc-400"
+            className={`text-2xl font-mono font-semibold tabular-nums ${
+              summary.security_fix_count > 0 ? "text-rose-300 font-bold" : "text-zinc-400"
             }`}
           >
             {summary.security_fix_count}
           </span>
-          <span className="text-[11px] text-zinc-400">
-            {summary.security_fix_count > 0 ? "Top priority" : "Clean"}
+          <span className="text-[11px] font-mono text-zinc-400">
+            {summary.security_fix_count > 0 ? "Requires action" : "Clean"}
           </span>
         </div>
-      </div>
+      </button>
 
-      {/* Safe */}
-      <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-lg p-3.5 flex flex-col justify-between">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400/90">
-            Safe (Minor & Patch)
+      {/* 3. Safe Updates */}
+      <button
+        type="button"
+        onClick={() => handleCardClick("safe")}
+        className={`text-left rounded-lg p-3 flex flex-col justify-between border transition-all cursor-pointer ${
+          activeFilter === "safe"
+            ? "bg-emerald-950/40 border-emerald-500 ring-1 ring-emerald-500/20"
+            : "bg-zinc-900/50 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/80"
+        }`}
+      >
+        <div className="flex items-center justify-between w-full">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400/90 flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            Safe Updates
           </span>
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          {activeFilter === "safe" && (
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          )}
         </div>
-        <div className="flex items-baseline justify-between mt-2">
-          <span className="text-2xl font-mono font-semibold text-emerald-400">
+        <div className="flex items-baseline justify-between mt-2.5">
+          <span className="text-2xl font-mono font-semibold tabular-nums text-emerald-400">
             {summary.safe_count}
           </span>
-          <span className="text-[11px] text-zinc-400">Auto-checked</span>
+          <span className="text-[11px] font-mono text-zinc-400">Minor & Patch</span>
         </div>
-      </div>
+      </button>
 
-      {/* Breaking / Major */}
-      <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-lg p-3.5 flex flex-col justify-between">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-mono uppercase tracking-wider text-rose-400/90">
-            Breaking (Major)
+      {/* 4. Major Breaking */}
+      <button
+        type="button"
+        onClick={() => handleCardClick("major")}
+        className={`text-left rounded-lg p-3 flex flex-col justify-between border transition-all cursor-pointer ${
+          activeFilter === "major"
+            ? "bg-amber-950/40 border-amber-500 ring-1 ring-amber-500/20"
+            : "bg-zinc-900/50 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/80"
+        }`}
+      >
+        <div className="flex items-center justify-between w-full">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-amber-400/90 flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+            Major Breaking
           </span>
-          <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+          {activeFilter === "major" && (
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+          )}
         </div>
-        <div className="flex items-baseline justify-between mt-2">
-          <span className="text-2xl font-mono font-semibold text-rose-400">
+        <div className="flex items-baseline justify-between mt-2.5">
+          <span className="text-2xl font-mono font-semibold tabular-nums text-amber-300">
             {summary.major_count}
           </span>
-          <span className="text-[11px] text-zinc-400">Unchecked</span>
+          <span className="text-[11px] font-mono text-zinc-400">Review diff</span>
         </div>
-      </div>
+      </button>
 
-      {/* Pinned */}
-      <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-lg p-3.5 flex flex-col justify-between">
-        <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
-          Pinned / Held
-        </span>
-        <div className="flex items-baseline justify-between mt-2">
-          <span className="text-2xl font-mono font-semibold text-zinc-300">
+      {/* 5. Pinned / Held */}
+      <button
+        type="button"
+        onClick={() => handleCardClick("pinned")}
+        className={`text-left rounded-lg p-3 flex flex-col justify-between border transition-all cursor-pointer ${
+          activeFilter === "pinned"
+            ? "bg-zinc-900 border-zinc-500 ring-1 ring-zinc-500/20"
+            : "bg-zinc-900/50 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/80"
+        }`}
+      >
+        <div className="flex items-center justify-between w-full">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+            <Pin className="w-3.5 h-3.5 text-zinc-400" />
+            Pinned / Held
+          </span>
+          {activeFilter === "pinned" && (
+            <span className="w-1.5 h-1.5 rounded-full bg-zinc-300"></span>
+          )}
+        </div>
+        <div className="flex items-baseline justify-between mt-2.5">
+          <span className="text-2xl font-mono font-semibold tabular-nums text-zinc-300">
             {summary.pinned_count}
           </span>
-          <span className="text-[11px] text-zinc-400">Locked</span>
+          <span className="text-[11px] font-mono text-zinc-400">Excluded</span>
         </div>
-      </div>
+      </button>
     </div>
   );
 };
