@@ -12,12 +12,18 @@ import {
   ExternalLink,
   X,
   MinusSquare,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import type { Package, Vulnerability, FilterType } from "../lib/types";
 
 interface PackageTableProps {
   packages: Package[];
   activeFilter: FilterType;
+  isScanning: boolean;
+  isUpgrading: boolean;
+  activeManager?: string | null;
+  completedManagers?: Record<string, "ok" | "failed">;
   onFilterChange: (filter: FilterType) => void;
   onTogglePackage: (id: string) => void;
   onTogglePin: (id: string) => void;
@@ -28,9 +34,50 @@ interface PackageTableProps {
   onToggleManagerSelection: (manager: string) => void;
 }
 
+const ScanningSkeleton: FC = () => (
+  <div className="space-y-3">
+    <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-lg p-8 text-center">
+      <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800/80 mb-3 border border-zinc-700/60 shadow-inner">
+        <Loader2 className="w-5 h-5 text-zinc-300 animate-spin" />
+      </div>
+      <h3 className="text-sm font-semibold text-zinc-200 font-mono">Scanning System Package Managers</h3>
+      <p className="text-xs text-zinc-400 mt-1.5 max-w-md mx-auto">
+        Querying Homebrew, Cargo, Pip, Gem, NPM, and 140+ package registries via MPM, computing SemVer diffs, and checking OSV.dev vulnerability intelligence...
+      </p>
+    </div>
+
+    {/* Skeleton Rows */}
+    <div className="bg-zinc-900/30 border border-zinc-800/60 rounded-lg overflow-hidden divide-y divide-zinc-800/40">
+      <div className="bg-zinc-950/70 px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-3.5 h-3.5 bg-zinc-800 rounded animate-pulse"></div>
+          <div className="w-20 h-3 bg-zinc-800 rounded animate-pulse"></div>
+        </div>
+        <div className="w-16 h-2.5 bg-zinc-800 rounded animate-pulse"></div>
+      </div>
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="px-4 py-2.5 flex items-center justify-between gap-4 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-4 bg-zinc-800 rounded"></div>
+            <div className="w-32 h-3 bg-zinc-800 rounded"></div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-24 h-3 bg-zinc-800 rounded"></div>
+            <div className="w-16 h-4 bg-zinc-800 rounded"></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 export const PackageTable: FC<PackageTableProps> = ({
   packages,
   activeFilter,
+  isScanning,
+  isUpgrading,
+  activeManager,
+  completedManagers = {},
   onFilterChange,
   onTogglePackage,
   onTogglePin,
@@ -139,8 +186,38 @@ export const PackageTable: FC<PackageTableProps> = ({
     setExpandedVulns((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // If initial scanning and no packages loaded yet, render skeleton
+  if (isScanning && packages.length === 0) {
+    return <ScanningSkeleton />;
+  }
+
   return (
     <div className="space-y-3.5">
+      {/* Live Upgrade Progress Notification */}
+      {isUpgrading && (
+        <div className="bg-blue-950/70 border border-blue-800/90 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs font-mono shadow-lg animate-in fade-in">
+          <div className="flex items-center gap-2.5 text-blue-200">
+            <Loader2 className="w-4 h-4 animate-spin text-blue-400 shrink-0" />
+            <span>
+              {activeManager
+                ? `Executing upgrades for manager: [${activeManager}]...`
+                : "Upgrade queue dispatched, executing commands..."}
+            </span>
+          </div>
+          <span className="text-[11px] text-zinc-400 bg-zinc-900/80 px-2 py-0.5 rounded border border-zinc-800 shrink-0">
+            Controls locked during execution
+          </span>
+        </div>
+      )}
+
+      {/* Subtle indicator for background rescan when data already exists */}
+      {isScanning && packages.length > 0 && (
+        <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 bg-zinc-900/60 border border-zinc-800 px-3 py-1.5 rounded-lg animate-pulse">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />
+          <span>Rescanning package registries for latest version diffs...</span>
+        </div>
+      )}
+
       {/* Controls Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-zinc-900/60 border border-zinc-800/80 p-2.5 rounded-lg">
         {/* Search */}
@@ -149,14 +226,16 @@ export const PackageTable: FC<PackageTableProps> = ({
           <input
             ref={searchInputRef}
             type="text"
+            disabled={isUpgrading}
             placeholder="Search package, manager, or CVE... (/)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-zinc-950/80 border border-zinc-800/90 rounded-md pl-9 pr-8 py-1.5 text-xs font-mono text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600/30"
+            className="w-full bg-zinc-950/80 border border-zinc-800/90 rounded-md pl-9 pr-8 py-1.5 text-xs font-mono text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600/30 disabled:opacity-50"
           />
           {search && (
             <button
               type="button"
+              disabled={isUpgrading}
               onClick={() => setSearch("")}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 p-0.5"
             >
@@ -169,11 +248,12 @@ export const PackageTable: FC<PackageTableProps> = ({
         <div className="flex items-center gap-1.5 text-xs flex-wrap">
           <button
             type="button"
+            disabled={isUpgrading}
             onClick={() => onFilterChange("all")}
-            className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer text-xs font-mono ${
+            className={`px-2.5 py-1 rounded-md transition-colors text-xs font-mono disabled:opacity-50 ${
               activeFilter === "all"
                 ? "bg-zinc-800 text-zinc-100 font-semibold border border-zinc-700"
-                : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-transparent"
+                : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-transparent cursor-pointer"
             }`}
           >
             All ({packages.length})
@@ -182,11 +262,12 @@ export const PackageTable: FC<PackageTableProps> = ({
           {securityPackagesCount > 0 && (
             <button
               type="button"
+              disabled={isUpgrading}
               onClick={() => onFilterChange("security")}
-              className={`px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 cursor-pointer text-xs font-mono ${
+              className={`px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 text-xs font-mono disabled:opacity-50 ${
                 activeFilter === "security"
                   ? "bg-rose-950 text-rose-300 border border-rose-600 font-semibold"
-                  : "text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 border border-rose-900/40"
+                  : "text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 border border-rose-900/40 cursor-pointer"
               }`}
             >
               <Flame className="w-3 h-3 text-rose-400" />
@@ -196,11 +277,12 @@ export const PackageTable: FC<PackageTableProps> = ({
 
           <button
             type="button"
+            disabled={isUpgrading}
             onClick={() => onFilterChange("safe")}
-            className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer text-xs font-mono ${
+            className={`px-2.5 py-1 rounded-md transition-colors text-xs font-mono disabled:opacity-50 ${
               activeFilter === "safe"
                 ? "bg-emerald-950 text-emerald-300 border border-emerald-600 font-semibold"
-                : "text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800/50 border border-transparent"
+                : "text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800/50 border border-transparent cursor-pointer"
             }`}
           >
             Safe ({safePackagesCount})
@@ -208,11 +290,12 @@ export const PackageTable: FC<PackageTableProps> = ({
 
           <button
             type="button"
+            disabled={isUpgrading}
             onClick={() => onFilterChange("major")}
-            className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer text-xs font-mono ${
+            className={`px-2.5 py-1 rounded-md transition-colors text-xs font-mono disabled:opacity-50 ${
               activeFilter === "major"
                 ? "bg-amber-950 text-amber-300 border border-amber-600 font-semibold"
-                : "text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/50 border border-transparent"
+                : "text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/50 border border-transparent cursor-pointer"
             }`}
           >
             Major ({majorPackagesCount})
@@ -221,11 +304,12 @@ export const PackageTable: FC<PackageTableProps> = ({
           {pinnedPackagesCount > 0 && (
             <button
               type="button"
+              disabled={isUpgrading}
               onClick={() => onFilterChange("pinned")}
-              className={`px-2.5 py-1 rounded-md transition-colors cursor-pointer text-xs font-mono ${
+              className={`px-2.5 py-1 rounded-md transition-colors text-xs font-mono disabled:opacity-50 ${
                 activeFilter === "pinned"
                   ? "bg-zinc-800 text-zinc-100 border border-zinc-600 font-semibold"
-                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-transparent"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-transparent cursor-pointer"
               }`}
             >
               Pinned ({pinnedPackagesCount})
@@ -235,9 +319,10 @@ export const PackageTable: FC<PackageTableProps> = ({
           {/* Manager filter select */}
           {managers.length > 1 && (
             <select
+              disabled={isUpgrading}
               value={selectedManager}
               onChange={(e) => setSelectedManager(e.target.value)}
-              className="bg-zinc-950 border border-zinc-800 text-xs font-mono text-zinc-300 rounded-md px-2 py-1 ml-1 focus:outline-none focus:border-zinc-700 cursor-pointer"
+              className="bg-zinc-950 border border-zinc-800 text-xs font-mono text-zinc-300 rounded-md px-2 py-1 ml-1 focus:outline-none focus:border-zinc-700 cursor-pointer disabled:opacity-50"
             >
               <option value="all">All Managers ({packages.length})</option>
               {managers.map((m) => (
@@ -254,37 +339,41 @@ export const PackageTable: FC<PackageTableProps> = ({
           {securityPackagesCount > 0 && (
             <button
               type="button"
+              disabled={isUpgrading}
               onClick={onSelectSecurity}
-              className="text-[11px] font-mono text-rose-300 hover:text-rose-100 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 px-2.5 py-1 rounded-md transition-colors font-medium cursor-pointer"
+              className="text-[11px] font-mono text-rose-300 hover:text-rose-100 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 px-2.5 py-1 rounded-md transition-colors font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Select CVEs
             </button>
           )}
           <button
             type="button"
+            disabled={isUpgrading}
             onClick={onSelectSafe}
-            className="text-[11px] font-mono text-emerald-400 hover:text-emerald-200 bg-emerald-950/40 hover:bg-emerald-950/70 border border-emerald-900/60 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
+            className="text-[11px] font-mono text-emerald-400 hover:text-emerald-200 bg-emerald-950/40 hover:bg-emerald-950/70 border border-emerald-900/60 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Select Safe
           </button>
           <button
             type="button"
+            disabled={isUpgrading}
             onClick={onSelectAll}
-            className="text-[11px] font-mono text-zinc-300 hover:text-zinc-100 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
+            className="text-[11px] font-mono text-zinc-300 hover:text-zinc-100 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             All
           </button>
           <button
             type="button"
+            disabled={isUpgrading}
             onClick={onDeselectAll}
-            className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
+            className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Clear
           </button>
         </div>
       </div>
 
-      {/* Package Groups */}
+      {/* Package Groups or Empty State */}
       {grouped.length === 0 ? (
         <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-lg p-12 text-center">
           <ShieldCheck className="w-8 h-8 text-emerald-500/80 mx-auto mb-2" />
@@ -298,6 +387,8 @@ export const PackageTable: FC<PackageTableProps> = ({
       ) : (
         <div className="space-y-3">
           {grouped.map(([manager, items]) => {
+            const isManagerActive = isUpgrading && activeManager === manager;
+            const managerOutcome = completedManagers[manager];
             const selectableItems = items.filter((p) => !p.pinned);
             const selectedItems = items.filter((p) => p.selected && !p.pinned);
             const isAllSelected = selectableItems.length > 0 && selectedItems.length === selectableItems.length;
@@ -306,16 +397,25 @@ export const PackageTable: FC<PackageTableProps> = ({
             return (
               <div
                 key={manager}
-                className="bg-zinc-900/50 border border-zinc-800/80 rounded-lg overflow-hidden"
+                className={`bg-zinc-900/50 border rounded-lg overflow-hidden transition-all ${
+                  isManagerActive
+                    ? "border-blue-500 ring-1 ring-blue-500/30"
+                    : managerOutcome === "ok"
+                    ? "border-emerald-700/80"
+                    : managerOutcome === "failed"
+                    ? "border-rose-700/80"
+                    : "border-zinc-800/80"
+                }`}
               >
-                {/* Group Header (Collapsible + Select-All) */}
+                {/* Group Header */}
                 <div className="bg-zinc-950/80 border-b border-zinc-800/80 px-3.5 py-2 flex items-center justify-between select-none">
                   <div className="flex items-center gap-2.5">
                     {/* Collapsible toggle */}
                     <button
                       type="button"
+                      disabled={isUpgrading}
                       onClick={() => setCollapsedManagers((prev) => ({ ...prev, [manager]: !prev[manager] }))}
-                      className="text-zinc-400 hover:text-zinc-200 p-0.5 rounded cursor-pointer"
+                      className="text-zinc-400 hover:text-zinc-200 p-0.5 rounded cursor-pointer disabled:opacity-40"
                       title={collapsedManagers[manager] ? "Expand manager" : "Collapse manager"}
                     >
                       {collapsedManagers[manager] ? (
@@ -328,9 +428,9 @@ export const PackageTable: FC<PackageTableProps> = ({
                     {/* Manager selection checkbox */}
                     <button
                       type="button"
-                      disabled={selectableItems.length === 0}
+                      disabled={selectableItems.length === 0 || isUpgrading}
                       onClick={() => onToggleManagerSelection(manager)}
-                      className="text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer disabled:opacity-40"
+                      className="text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                       title={
                         isAllSelected
                           ? `Deselect all ${manager} packages`
@@ -353,6 +453,25 @@ export const PackageTable: FC<PackageTableProps> = ({
                       <span className="text-[10px] font-mono text-zinc-400 bg-zinc-800/80 border border-zinc-700/50 px-1.5 py-0.2 rounded">
                         {selectedItems.length}/{items.length} selected
                       </span>
+
+                      {/* Live manager status badge */}
+                      {isManagerActive && (
+                        <span className="flex items-center gap-1 text-[10px] font-mono text-blue-300 bg-blue-950 border border-blue-700 px-1.5 py-0.2 rounded">
+                          <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
+                          Upgrading...
+                        </span>
+                      )}
+                      {managerOutcome === "ok" && (
+                        <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-300 bg-emerald-950 border border-emerald-700 px-1.5 py-0.2 rounded font-semibold">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          Done
+                        </span>
+                      )}
+                      {managerOutcome === "failed" && (
+                        <span className="flex items-center gap-1 text-[10px] font-mono text-rose-300 bg-rose-950 border border-rose-700 px-1.5 py-0.2 rounded font-semibold">
+                          Failed
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -377,30 +496,40 @@ export const PackageTable: FC<PackageTableProps> = ({
                       const maxSev = pkg.max_severity || "HIGH";
                       const isExpanded = expandedVulns[id];
 
+                      const isPkgActive = isManagerActive && selected;
+                      const isPkgDone = managerOutcome === "ok" && selected;
+                      const isPkgFailed = managerOutcome === "failed" && selected;
+
                       return (
                         <div key={id} className="flex flex-col">
                           <div
-                            onClick={() => !pinned && onTogglePackage(id)}
+                            onClick={() => !pinned && !isUpgrading && onTogglePackage(id)}
                             className={`px-3.5 py-2 flex items-center justify-between gap-4 transition-colors ${
-                              pinned
+                              isUpgrading
+                                ? "cursor-wait"
+                                : pinned
                                 ? "opacity-60 bg-zinc-950/40 cursor-not-allowed"
                                 : "hover:bg-zinc-800/30 cursor-pointer"
                             } ${selected ? "bg-zinc-800/20" : ""} ${
                               hasVuln ? "border-l-2 border-l-rose-500 bg-rose-950/15" : ""
-                            }`}
+                            } ${isPkgActive ? "bg-blue-950/30 border-l-2 border-l-blue-400" : ""}`}
                           >
                             {/* Left: Checkbox + Name + Badges */}
                             <div className="flex items-center gap-2.5 min-w-0">
                               <button
                                 type="button"
-                                disabled={pinned}
+                                disabled={pinned || isUpgrading}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (!pinned) onTogglePackage(id);
+                                  if (!pinned && !isUpgrading) onTogglePackage(id);
                                 }}
-                                className="text-zinc-400 hover:text-zinc-200 transition-colors focus:outline-none shrink-0"
+                                className="text-zinc-400 hover:text-zinc-200 transition-colors focus:outline-none shrink-0 disabled:cursor-not-allowed"
                               >
-                                {selected ? (
+                                {isPkgActive ? (
+                                  <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                                ) : isPkgDone ? (
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                ) : selected ? (
                                   <CheckSquare className="w-4 h-4 text-zinc-100" />
                                 ) : (
                                   <Square className="w-4 h-4 text-zinc-600" />
@@ -431,12 +560,13 @@ export const PackageTable: FC<PackageTableProps> = ({
 
                                 <button
                                   type="button"
+                                  disabled={isUpgrading}
                                   title={pinned ? "Unpin package" : "Pin package (lock current version)"}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onTogglePin(id);
+                                    if (!isUpgrading) onTogglePin(id);
                                   }}
-                                  className={`flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded transition-colors shrink-0 ${
+                                  className={`flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
                                     pinned
                                       ? "bg-amber-950/90 text-amber-300 border border-amber-700 hover:bg-amber-900"
                                       : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/80 border border-transparent"
@@ -457,9 +587,21 @@ export const PackageTable: FC<PackageTableProps> = ({
                                 <span className="text-zinc-100 font-semibold">{lat}</span>
                               </div>
 
-                              {/* Semver Badge */}
-                              <div className="w-20 flex justify-end">
-                                {hasVuln ? (
+                              {/* Semver / Status Badge */}
+                              <div className="w-24 flex justify-end">
+                                {isPkgActive ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-700 uppercase tracking-wider">
+                                    <Loader2 className="w-2.5 h-2.5 animate-spin" /> RUNNING
+                                  </span>
+                                ) : isPkgDone ? (
+                                  <span className="inline-flex items-center text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700 uppercase tracking-wider">
+                                    UPGRADED ✓
+                                  </span>
+                                ) : isPkgFailed ? (
+                                  <span className="inline-flex items-center text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-700 uppercase tracking-wider">
+                                    FAILED ✗
+                                  </span>
+                                ) : hasVuln ? (
                                   <span className="inline-flex items-center text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-700 uppercase tracking-wider">
                                     CVE FIX
                                   </span>

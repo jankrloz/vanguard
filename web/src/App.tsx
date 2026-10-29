@@ -27,14 +27,16 @@ export function App() {
     security_fix_count: 0,
   });
 
-  const [isScanning, setIsScanning] = useState(false);
+  const [isScanning, setIsScanning] = useState(true);
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [activeManager, setActiveManager] = useState<string | null>(null);
+  const [completedManagers, setCompletedManagers] = useState<Record<string, "ok" | "failed">>({});
   const [events, setEvents] = useState<UpgradeEvent[]>([]);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load status and packages on mount
+  // Load status and packages
   const loadData = useCallback(async (refresh = false) => {
     setIsScanning(true);
     setError(null);
@@ -78,8 +80,26 @@ export function App() {
 
       if (event.type === "start") {
         setIsUpgrading(true);
+        setActiveManager(null);
+        setCompletedManagers({});
+      } else if (event.type === "package_start") {
+        if (event.package) setActiveManager(event.package);
+      } else if (event.type === "package_done") {
+        if (event.package) {
+          setCompletedManagers((prev) => ({
+            ...prev,
+            [event.package!]: event.status === "failed" ? "failed" : "ok",
+          }));
+        }
       } else if (event.type === "complete" || event.type === "error") {
         setIsUpgrading(false);
+        setActiveManager(null);
+        if (event.type === "complete") {
+          // Seamlessly auto-refresh packages to remove upgraded entries from list
+          setTimeout(() => {
+            loadData(true);
+          }, 1200);
+        }
       }
     });
 
@@ -90,6 +110,7 @@ export function App() {
 
   // Toggle selection
   const handleTogglePackage = (id: string) => {
+    if (isUpgrading) return;
     setPackages((prev) =>
       prev.map((p) => {
         if (p.id === id) {
@@ -101,6 +122,7 @@ export function App() {
   };
 
   const handleToggleManagerSelection = (manager: string) => {
+    if (isUpgrading) return;
     setPackages((prev) => {
       const managerPkgs = prev.filter((p) => p.manager === manager && !p.pinned);
       const allSelected = managerPkgs.length > 0 && managerPkgs.every((p) => p.selected);
@@ -114,33 +136,39 @@ export function App() {
   };
 
   const handleSelectSafe = () => {
+    if (isUpgrading) return;
     setPackages((prev) =>
       prev.map((p) => ({ ...p, selected: p.safe && !p.pinned }))
     );
   };
 
   const handleSelectSecurity = () => {
+    if (isUpgrading) return;
     setPackages((prev) =>
       prev.map((p) => ({ ...p, selected: Boolean(p.has_vulnerability && !p.pinned) }))
     );
   };
 
   const handleSelectAll = () => {
+    if (isUpgrading) return;
     setPackages((prev) =>
       prev.map((p) => ({ ...p, selected: !p.pinned }))
     );
   };
 
   const handleDeselectAll = () => {
+    if (isUpgrading) return;
     setPackages((prev) => prev.map((p) => ({ ...p, selected: false })));
   };
 
   const handleUpgrade = async () => {
     const selected = packages.filter((p) => p.selected && !p.pinned);
-    if (selected.length === 0 || isUpgrading) return;
+    if (selected.length === 0 || isUpgrading || isScanning) return;
 
     setIsUpgrading(true);
     setIsLogOpen(true);
+    setActiveManager(null);
+    setCompletedManagers({});
     setEvents([]);
 
     try {
@@ -154,6 +182,7 @@ export function App() {
   };
 
   const handleClean = async () => {
+    if (isUpgrading || isScanning) return;
     setIsUpgrading(true);
     setIsLogOpen(true);
     setEvents([]);
@@ -168,6 +197,7 @@ export function App() {
   };
 
   const handleTopgrade = async () => {
+    if (isUpgrading || isScanning) return;
     setIsUpgrading(true);
     setIsLogOpen(true);
     setEvents([]);
@@ -182,6 +212,7 @@ export function App() {
   };
 
   const handleTogglePin = async (id: string) => {
+    if (isUpgrading) return;
     try {
       const res = await togglePin(id);
       setPackages((prev) =>
@@ -212,7 +243,7 @@ export function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        if (selectedCount > 0 && !isUpgrading) {
+        if (selectedCount > 0 && !isUpgrading && !isScanning) {
           e.preventDefault();
           handleUpgrade();
         }
@@ -220,7 +251,7 @@ export function App() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedCount, isUpgrading, packages]);
+  }, [selectedCount, isUpgrading, isScanning, packages]);
 
   return (
     <div className="min-h-screen bg-[#0c0d0e] text-zinc-100 flex flex-col selection:bg-zinc-800">
@@ -257,6 +288,7 @@ export function App() {
           summary={summary}
           selectedCount={selectedCount}
           activeFilter={activeFilter}
+          isScanning={isScanning}
           onFilterChange={setActiveFilter}
         />
 
@@ -264,6 +296,10 @@ export function App() {
         <PackageTable
           packages={packages}
           activeFilter={activeFilter}
+          isScanning={isScanning}
+          isUpgrading={isUpgrading}
+          activeManager={activeManager}
+          completedManagers={completedManagers}
           onFilterChange={setActiveFilter}
           onTogglePackage={handleTogglePackage}
           onTogglePin={handleTogglePin}

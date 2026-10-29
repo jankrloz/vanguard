@@ -6,6 +6,7 @@ interface MetricBarProps {
   summary: ScanSummary;
   selectedCount: number;
   activeFilter: FilterType;
+  isScanning: boolean;
   onFilterChange: (filter: FilterType) => void;
 }
 
@@ -13,6 +14,7 @@ export const MetricBar: FC<MetricBarProps> = ({
   summary,
   selectedCount,
   activeFilter,
+  isScanning,
   onFilterChange,
 }) => {
   const handleCardClick = (target: FilterType) => {
@@ -22,6 +24,8 @@ export const MetricBar: FC<MetricBarProps> = ({
       onFilterChange(target);
     }
   };
+
+  const isInitialScanning = isScanning && summary.total_packages === 0;
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
@@ -45,11 +49,15 @@ export const MetricBar: FC<MetricBarProps> = ({
           )}
         </div>
         <div className="flex items-baseline justify-between mt-2.5">
-          <span className="text-2xl font-mono font-semibold tabular-nums text-zinc-100">
-            {summary.total_packages}
-          </span>
+          {isInitialScanning ? (
+            <span className="text-2xl font-mono font-semibold text-zinc-600 animate-pulse">--</span>
+          ) : (
+            <span className="text-2xl font-mono font-semibold tabular-nums text-zinc-100">
+              {summary.total_packages}
+            </span>
+          )}
           <span className="text-[11px] font-mono text-zinc-400">
-            {selectedCount} selected
+            {isInitialScanning ? "Scanning..." : `${selectedCount} selected`}
           </span>
         </div>
       </button>
@@ -87,15 +95,19 @@ export const MetricBar: FC<MetricBarProps> = ({
           </div>
         </div>
         <div className="flex items-baseline justify-between mt-2.5">
-          <span
-            className={`text-2xl font-mono font-semibold tabular-nums ${
-              summary.security_fix_count > 0 ? "text-rose-300 font-bold" : "text-zinc-400"
-            }`}
-          >
-            {summary.security_fix_count}
-          </span>
+          {isInitialScanning ? (
+            <span className="text-2xl font-mono font-semibold text-zinc-600 animate-pulse">--</span>
+          ) : (
+            <span
+              className={`text-2xl font-mono font-semibold tabular-nums ${
+                summary.security_fix_count > 0 ? "text-rose-300 font-bold" : "text-zinc-400"
+              }`}
+            >
+              {summary.security_fix_count}
+            </span>
+          )}
           <span className="text-[11px] font-mono text-zinc-400">
-            {summary.security_fix_count > 0 ? "Requires action" : "Clean"}
+            {isInitialScanning ? "Auditing..." : summary.security_fix_count > 0 ? "Action required" : "Clean"}
           </span>
         </div>
       </button>
@@ -120,9 +132,13 @@ export const MetricBar: FC<MetricBarProps> = ({
           )}
         </div>
         <div className="flex items-baseline justify-between mt-2.5">
-          <span className="text-2xl font-mono font-semibold tabular-nums text-emerald-400">
-            {summary.safe_count}
-          </span>
+          {isInitialScanning ? (
+            <span className="text-2xl font-mono font-semibold text-zinc-600 animate-pulse">--</span>
+          ) : (
+            <span className="text-2xl font-mono font-semibold tabular-nums text-emerald-400">
+              {summary.safe_count}
+            </span>
+          )}
           <span className="text-[11px] font-mono text-zinc-400">Minor & Patch</span>
         </div>
       </button>
@@ -147,9 +163,13 @@ export const MetricBar: FC<MetricBarProps> = ({
           )}
         </div>
         <div className="flex items-baseline justify-between mt-2.5">
-          <span className="text-2xl font-mono font-semibold tabular-nums text-amber-300">
-            {summary.major_count}
-          </span>
+          {isInitialScanning ? (
+            <span className="text-2xl font-mono font-semibold text-zinc-600 animate-pulse">--</span>
+          ) : (
+            <span className="text-2xl font-mono font-semibold tabular-nums text-amber-300">
+              {summary.major_count}
+            </span>
+          )}
           <span className="text-[11px] font-mono text-zinc-400">Review diff</span>
         </div>
       </button>
@@ -174,9 +194,13 @@ export const MetricBar: FC<MetricBarProps> = ({
           )}
         </div>
         <div className="flex items-baseline justify-between mt-2.5">
-          <span className="text-2xl font-mono font-semibold tabular-nums text-zinc-300">
-            {summary.pinned_count}
-          </span>
+          {isInitialScanning ? (
+            <span className="text-2xl font-mono font-semibold text-zinc-600 animate-pulse">--</span>
+          ) : (
+            <span className="text-2xl font-mono font-semibold tabular-nums text-zinc-300">
+              {summary.pinned_count}
+            </span>
+          )}
           <span className="text-[11px] font-mono text-zinc-400">Excluded</span>
         </div>
       </button>

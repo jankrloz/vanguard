@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { ShieldCheck, ShieldAlert, RefreshCw, Trash2, ArrowUpCircle, Flame, Zap, History } from "lucide-react";
+import { ShieldCheck, ShieldAlert, RefreshCw, Trash2, ArrowUpCircle, Flame, Zap, History, Loader2 } from "lucide-react";
 import type { SystemStatus } from "../lib/types";
 
 interface HeaderProps {
@@ -78,8 +78,9 @@ export const Header: FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onOpenHistory}
+              disabled={isUpgrading}
               title="Audit history of upgraded packages"
-              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 px-2.5 py-1.5 rounded-md transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <History className="w-3.5 h-3.5 text-zinc-400" />
               <span className="hidden sm:inline">History</span>
@@ -88,9 +89,9 @@ export const Header: FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onTopgrade}
-              disabled={isUpgrading}
+              disabled={isUpgrading || isScanning}
               title="Run deep system-wide sweep via Topgrade"
-              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-amber-300 hover:bg-zinc-800/80 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-40 cursor-pointer"
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-amber-300 hover:bg-zinc-800/80 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <Zap className="w-3.5 h-3.5 text-amber-400" />
               <span className="hidden sm:inline">Sweep</span>
@@ -99,9 +100,9 @@ export const Header: FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onClean}
-              disabled={isUpgrading}
+              disabled={isUpgrading || isScanning}
               title="Clean package caches, old versions, and logs"
-              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-40 cursor-pointer"
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5 text-zinc-400" />
               <span className="hidden sm:inline">Clean</span>
@@ -115,7 +116,7 @@ export const Header: FC<HeaderProps> = ({
               onClick={onScan}
               disabled={isScanning || isUpgrading}
               title="Rescan system for outdated packages"
-              className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 cursor-pointer"
+              className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? "animate-spin text-zinc-400" : ""}`} />
               <span>{isScanning ? "Scanning..." : "Rescan"}</span>
@@ -124,17 +125,21 @@ export const Header: FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onUpgrade}
-              disabled={selectedCount === 0 || isUpgrading}
+              disabled={selectedCount === 0 || isUpgrading || isScanning}
               title={selectedCount > 0 ? "Upgrade selected packages (⌘↵)" : "Select packages to upgrade"}
               className={`flex items-center gap-2 text-xs font-semibold px-4 py-1.5 rounded-lg transition-all shadow-sm ${
-                selectedCount > 0 && !isUpgrading
+                selectedCount > 0 && !isUpgrading && !isScanning
                   ? "bg-zinc-100 hover:bg-white text-zinc-950 cursor-pointer hover:shadow-zinc-500/10"
                   : "bg-zinc-800/80 text-zinc-500 cursor-not-allowed border border-zinc-800"
               }`}
             >
-              <ArrowUpCircle className="w-4 h-4" />
+              {isUpgrading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+              ) : (
+                <ArrowUpCircle className="w-4 h-4" />
+              )}
               <span>{isUpgrading ? "Upgrading..." : `Upgrade (${selectedCount})`}</span>
-              {selectedCount > 0 && !isUpgrading && (
+              {selectedCount > 0 && !isUpgrading && !isScanning && (
                 <kbd className="hidden sm:inline text-[10px] font-mono bg-zinc-300 text-zinc-800 px-1 py-0.2 rounded font-normal">
                   ⌘↵
                 </kbd>
