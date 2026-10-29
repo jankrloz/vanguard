@@ -193,6 +193,17 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 		endpoint = "https://api.osv.dev/v1/querybatch"
 	}
 
+	// Launch Tier 1 (osv-scanner, trivy sbom) & Tier 2 (native CLI audits) concurrently in production mode
+	var externalFindings map[int][]domain.Vulnerability
+	var extWg sync.WaitGroup
+	if endpoint == "https://api.osv.dev/v1/querybatch" {
+		extWg.Add(1)
+		go func() {
+			defer extWg.Done()
+			externalFindings = a.RunExternalAndNativeScanners(ctx, pkgs)
+		}()
+	}
+
 	// 2. Query batch in chunks
 	const chunkSize = 500
 	var uniqueVulnIDs = make(map[string]bool)
@@ -259,10 +270,6 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 			}
 			matches = append(matches, pkgMatch{pkgIdx: pkgIdx, vulnIDs: ids})
 		}
-	}
-
-	if len(matches) == 0 {
-		return pkgs
 	}
 
 	// 3. Hydrate full details for each unique vulnerability ID concurrently
@@ -422,6 +429,18 @@ func (a *Advisor) EnrichPackages(ctx context.Context, pkgs []domain.Package) []d
 		pkgs[pkgIdx].Vulnerabilities = vulns
 		pkgs[pkgIdx].HasVulnerability = true
 		pkgs[pkgIdx].MaxSeverity = maxSeverity
+		pkgs[pkgIdx].Selected = true
+	}
+
+	extWg.Wait()
+	for pkgIdx, extraVulns := range externalFindings {
+		if pkgIdx < 0 || pkgIdx >= len(pkgs) || len(extraVulns) == 0 {
+			continue
+		}
+		merged, maxSev := mergePackageVulnerabilities(pkgs[pkgIdx].Vulnerabilities, extraVulns)
+		pkgs[pkgIdx].Vulnerabilities = merged
+		pkgs[pkgIdx].HasVulnerability = len(merged) > 0
+		pkgs[pkgIdx].MaxSeverity = maxSev
 		pkgs[pkgIdx].Selected = true
 	}
 

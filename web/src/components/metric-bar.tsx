@@ -57,7 +57,7 @@ export const MetricBar: FC<MetricBarProps> = ({
             <span className="text-[10px] font-mono font-medium text-rose-400">ACTIVE</span>
           )}
         </div>
-        <div className="flex items-baseline justify-between mt-2.5">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap mt-2.5">
           {isInitialScanning ? (
             <span className="text-2xl font-mono font-semibold text-zinc-600 animate-pulse">--</span>
           ) : (
@@ -69,13 +69,13 @@ export const MetricBar: FC<MetricBarProps> = ({
               {summary.security_fix_count}
             </span>
           )}
-          <div className="flex items-center gap-1.5 text-[10px] font-mono">
+          <div className="flex items-center gap-1.5 flex-wrap text-[11px] font-mono">
             {isInitialScanning ? (
-              <span className="text-zinc-500">Scanning...</span>
+              <span className="text-zinc-400">Scanning...</span>
             ) : summary.security_fix_count === 0 ? (
               <span className="text-zinc-400">Clean</span>
             ) : (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {(summary.critical_count ?? 0) > 0 && (
                   <span className="text-rose-400 font-bold">{summary.critical_count} Crit</span>
                 )}

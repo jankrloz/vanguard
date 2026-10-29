@@ -31,19 +31,19 @@ export const Header: FC<HeaderProps> = ({
   onOpenHistory,
 }) => {
   return (
-    <header className="border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md px-6 py-3.5 sticky top-0 z-30">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+    <header className="border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md px-4 sm:px-6 py-3.5 sticky top-0 z-30">
+      <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
         {/* Brand */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <BrandDelta size={34} className="w-8 h-8 shrink-0" />
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-semibold tracking-tight text-zinc-100 font-mono">VANGUARD</h1>
-              <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 bg-zinc-800/80 border border-zinc-700/50 px-1.5 py-0.2 rounded">
-                {status?.version ? `v${status.version}` : "v0.1.2"}
+              <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-300 bg-zinc-800/80 border border-zinc-700/50 px-1.5 py-0.5 rounded">
+                {status?.version ? `v${status.version}` : "v0.2.0"}
               </span>
             </div>
-            <p className="text-[11px] text-zinc-400">Vulnerability Shield & Package Controller</p>
+            <p className="hidden sm:block text-xs text-zinc-400 truncate">Vulnerability Shield &amp; Package Controller</p>
           </div>
         </div>
 

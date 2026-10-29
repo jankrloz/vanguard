@@ -125,7 +125,9 @@ export const PackageTable: FC<PackageTableProps> = ({
   // Global key listener for '/' search focus
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "/" && document.activeElement !== searchInputRef.current) {
+      const targetTag = (e.target as HTMLElement)?.tagName;
+      const isEditing = targetTag === "INPUT" || targetTag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
+      if (e.key === "/" && !isEditing && document.activeElement !== searchInputRef.current) {
         e.preventDefault();
         searchInputRef.current?.focus();
       } else if (e.key === "Escape" && document.activeElement === searchInputRef.current) {
@@ -798,15 +800,18 @@ export const PackageTable: FC<PackageTableProps> = ({
                             } ${isPkgActive ? "bg-blue-950/30 border-l-2 border-l-blue-400" : ""}`}
                           >
                             {/* Left: Checkbox + Name + Source Link + Pin */}
-                            <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="flex-1 flex items-center gap-2.5 min-w-0">
                               <button
                                 type="button"
+                                role="checkbox"
+                                aria-checked={selected}
+                                aria-label={`Select ${name}`}
                                 disabled={pinned || isUpgrading}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (!pinned && !isUpgrading) onTogglePackage(id);
                                 }}
-                                className="text-zinc-400 hover:text-zinc-200 transition-colors focus:outline-none shrink-0 disabled:cursor-not-allowed"
+                                className="text-zinc-400 hover:text-zinc-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded shrink-0 disabled:cursor-not-allowed"
                               >
                                 {isPkgActive ? (
                                   <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
@@ -819,9 +824,9 @@ export const PackageTable: FC<PackageTableProps> = ({
                                 )}
                               </button>
 
-                              <div className="min-w-0 flex flex-col justify-center py-0.5">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono text-xs font-semibold text-zinc-200 truncate">
+                              <div className="min-w-0 flex-1 flex flex-col justify-center py-0.5">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="font-mono text-xs font-semibold text-zinc-200 truncate" title={name}>
                                     {name}
                                   </span>
 
@@ -830,9 +835,10 @@ export const PackageTable: FC<PackageTableProps> = ({
                                       href={pkg.source_url}
                                       target="_blank"
                                       rel="noopener noreferrer"
+                                      aria-label={`Open ${name} upstream source`}
                                       onClick={(e) => e.stopPropagation()}
                                       title={`Open upstream repository/registry (${pkg.source_url})`}
-                                      className="text-zinc-500 hover:text-zinc-300 transition-colors p-0.5 inline-flex items-center shrink-0 cursor-pointer"
+                                      className="text-zinc-400 hover:text-zinc-200 transition-colors p-0.5 inline-flex items-center shrink-0 cursor-pointer"
                                     >
                                       <ExternalLink className="w-3 h-3" />
                                     </a>
@@ -846,10 +852,10 @@ export const PackageTable: FC<PackageTableProps> = ({
                                       e.stopPropagation();
                                       if (!isUpgrading) onTogglePin(id);
                                     }}
-                                    className={`flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.2 rounded transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
+                                    className={`flex items-center gap-1 text-[11px] font-mono px-1.5 py-0.5 rounded transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
                                       pinned
                                         ? "bg-amber-950/90 text-amber-300 border border-amber-700 hover:bg-amber-900"
-                                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/80 border border-transparent"
+                                        : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80 border border-transparent"
                                     }`}
                                   >
                                     <Pin className="w-2.5 h-2.5" />
@@ -857,58 +863,66 @@ export const PackageTable: FC<PackageTableProps> = ({
                                   </button>
                                 </div>
 
-                                {hasVuln && vulns.length > 0 && vulns[0].summary ? (
+                                {pkg.description && pkg.description !== vulns[0]?.summary && (
                                   <p
-                                    className="text-[11px] font-mono text-rose-300 font-medium truncate max-w-2xl mt-0.5 leading-tight flex items-center gap-1.5"
-                                    title={`${vulns[0].id}: ${vulns[0].summary}`}
-                                  >
-                                    <span className="text-rose-500 font-bold shrink-0">CVE:</span>
-                                    <span className="truncate">{vulns[0].summary}</span>
-                                    {vulns.length > 1 && (
-                                      <span className="text-rose-400/80 shrink-0 text-[10px]">
-                                        (+{vulns.length - 1} more)
-                                      </span>
-                                    )}
-                                  </p>
-                                ) : pkg.description ? (
-                                  <p
-                                    className="text-[11px] font-mono text-zinc-400 truncate max-w-xl mt-0.5 leading-tight"
+                                    className="text-xs font-sans text-zinc-400 truncate mt-0.5 leading-snug"
                                     title={pkg.description}
                                   >
                                     {pkg.description}
                                   </p>
-                                ) : null}
+                                )}
+
+                                {hasVuln && vulns.length > 0 && vulns[0].summary && (
+                                  <p
+                                    className="text-xs font-mono text-rose-300 font-medium mt-0.5 leading-snug flex items-center gap-1.5 min-w-0"
+                                    title={`${vulns[0].id}: ${vulns[0].summary}`}
+                                  >
+                                    <span className="text-rose-400 font-bold shrink-0">
+                                      {vulns[0].id.split(" ")[0]}:
+                                    </span>
+                                    <span className="truncate min-w-0 flex-1 font-sans">{vulns[0].summary}</span>
+                                    {vulns.length > 1 && (
+                                      <span className="text-rose-400/90 shrink-0 text-[11px] font-mono">
+                                        (+{vulns.length - 1} more)
+                                      </span>
+                                    )}
+                                  </p>
+                                )}
                               </div>
                             </div>
 
                             {/* Right: Versions + Single Authority Badge */}
-                            <div className="flex items-center gap-3.5 shrink-0">
+                            <div className="flex items-center gap-3 shrink-0">
                               {/* Version flow */}
                               <div className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
-                                <span className="text-zinc-400">{cur}</span>
-                                <span className="text-zinc-600 select-none">→</span>
-                                <span className="text-zinc-100 font-semibold">{lat}</span>
+                                <span className="text-zinc-400 max-w-[12ch] sm:max-w-[20ch] truncate" title={cur}>
+                                  {cur}
+                                </span>
+                                <span className="text-zinc-500 select-none">→</span>
+                                <span className="text-zinc-100 font-semibold max-w-[12ch] sm:max-w-[20ch] truncate" title={lat}>
+                                  {lat}
+                                </span>
                               </div>
 
                               {/* Single Badge Authority */}
-                              <div className="w-28 flex justify-end">
+                              <div className="min-w-[7.5rem] sm:min-w-[8.5rem] shrink-0 flex justify-end">
                                 {isPkgActive ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-700 uppercase tracking-wider">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-700 uppercase tracking-wider whitespace-nowrap">
                                     <Loader2 className="w-2.5 h-2.5 animate-spin" /> RUNNING
                                   </span>
                                 ) : isPkgDone ? (
-                                  <span className="inline-flex items-center text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700 uppercase tracking-wider">
+                                  <span className="inline-flex items-center text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700 uppercase tracking-wider whitespace-nowrap">
                                     UPGRADED ✓
                                   </span>
                                 ) : isPkgFailed ? (
-                                  <span className="inline-flex items-center text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-700 uppercase tracking-wider">
+                                  <span className="inline-flex items-center text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-700 uppercase tracking-wider whitespace-nowrap">
                                     FAILED ✗
                                   </span>
                                 ) : hasVuln ? (
                                   <button
                                     type="button"
                                     onClick={(e) => toggleExpand(id, e)}
-                                    className={`inline-flex items-center gap-1 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border cursor-pointer uppercase tracking-wider transition-colors ${
+                                    className={`inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded border cursor-pointer uppercase tracking-wider whitespace-nowrap transition-colors ${
                                       maxSev === "CRITICAL"
                                         ? "bg-rose-950 text-rose-300 border-rose-600 hover:bg-rose-900"
                                         : maxSev === "HIGH"
@@ -920,32 +934,32 @@ export const PackageTable: FC<PackageTableProps> = ({
                                     title="Click to expand security advisory details"
                                   >
                                     {maxSev === "CRITICAL" ? (
-                                      <Flame className="w-2.5 h-2.5 text-rose-400" />
+                                      <Flame className="w-3 h-3 text-rose-400 shrink-0" />
                                     ) : (
-                                      <AlertTriangle className="w-2.5 h-2.5 text-orange-400" />
+                                      <AlertTriangle className="w-3 h-3 text-orange-400 shrink-0" />
                                     )}
                                     <span>{maxSev} ({vulns.length})</span>
                                     {isExpanded ? (
-                                      <ChevronDown className="w-2.5 h-2.5" />
+                                      <ChevronDown className="w-3 h-3 shrink-0" />
                                     ) : (
-                                      <ChevronRight className="w-2.5 h-2.5" />
+                                      <ChevronRight className="w-3 h-3 shrink-0" />
                                     )}
                                   </button>
                                 ) : changeType === "major" ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800/60 uppercase tracking-wider">
-                                    <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800/60 uppercase tracking-wider whitespace-nowrap">
+                                    <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
                                     MAJOR
                                   </span>
                                 ) : changeType === "minor" ? (
-                                  <span className="inline-flex items-center text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 uppercase tracking-wider">
+                                  <span className="inline-flex items-center text-[11px] font-mono font-medium px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 uppercase tracking-wider whitespace-nowrap">
                                     MINOR
                                   </span>
                                 ) : changeType === "patch" ? (
-                                  <span className="inline-flex items-center text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 uppercase tracking-wider">
+                                  <span className="inline-flex items-center text-[11px] font-mono font-medium px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 uppercase tracking-wider whitespace-nowrap">
                                     PATCH
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 uppercase tracking-wider">
+                                  <span className="inline-flex items-center text-[11px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 uppercase tracking-wider whitespace-nowrap">
                                     UPDATE
                                   </span>
                                 )}
@@ -955,67 +969,71 @@ export const PackageTable: FC<PackageTableProps> = ({
 
                           {/* Expandable CVE details */}
                           {hasVuln && isExpanded && (
-                            <div className="bg-rose-950/20 border-t border-rose-900/40 px-6 py-2.5 text-xs font-mono space-y-2">
-                              <div className="text-[10px] font-semibold text-rose-400 uppercase tracking-wider flex items-center justify-between">
-                                <span>Security Advisory Intelligence:</span>
-                                <span className="text-zinc-500 font-normal">Click CVE/GHSA ID to inspect upstream advisory</span>
+                            <div className="bg-rose-950/20 border-t border-rose-900/40 px-4 sm:px-6 py-3 text-xs font-mono space-y-2">
+                              <div className="text-[11px] font-semibold text-rose-400 uppercase tracking-wider flex items-center justify-between flex-wrap gap-2">
+                                <span>Security Advisory Intelligence ({vulns.length}):</span>
+                                <span className="text-zinc-400 font-normal">Click CVE/GHSA ID to inspect upstream advisory</span>
                               </div>
                               {vulns.map((v: Vulnerability, i: number) => {
                                 const fixedIn = v.fixed_in;
                                 const isMitigated = v.is_mitigated;
-                                const osvUrl = `https://osv.dev/vulnerability/${encodeURIComponent(v.id)}`;
+                                const canonicalId = v.id.split(" ")[0];
+                                const osvUrl = `https://osv.dev/vulnerability/${encodeURIComponent(canonicalId)}`;
 
                                 return (
                                   <div
                                     key={i}
-                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-zinc-300 bg-rose-950/30 p-2 rounded-md border border-rose-900/40"
+                                    className="flex flex-col gap-1.5 text-zinc-300 bg-rose-950/30 p-2.5 rounded-md border border-rose-900/40"
                                   >
-                                    <div className="flex items-center gap-2 min-w-0 flex-wrap sm:flex-nowrap">
-                                      <a
-                                        href={osvUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="text-rose-400 hover:text-rose-200 font-bold shrink-0 inline-flex items-center gap-1 underline underline-offset-2 decoration-rose-500/50"
-                                        title={`View ${v.id} details on OSV.dev`}
-                                      >
-                                        <span>{v.id}</span>
-                                        <ExternalLink className="w-3 h-3" />
-                                      </a>
-                                      {v.source && (
-                                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-zinc-900 border border-zinc-700/80 text-zinc-300 shrink-0">
-                                          {v.source}
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <a
+                                          href={osvUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="text-rose-300 hover:text-rose-100 font-bold inline-flex items-center gap-1 underline underline-offset-2 decoration-rose-500/50"
+                                          title={`View ${canonicalId} details on OSV.dev`}
+                                        >
+                                          <span>{v.id}</span>
+                                          <ExternalLink className="w-3 h-3 shrink-0" />
+                                        </a>
+                                        {v.source && (
+                                          <span className="text-[11px] px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700/80 text-zinc-300">
+                                            {v.source}
+                                          </span>
+                                        )}
+                                        <span
+                                          className={`text-[11px] px-1.5 py-0.5 rounded font-bold uppercase border ${
+                                            v.severity === "CRITICAL"
+                                              ? "bg-rose-950 text-rose-200 border-rose-600"
+                                              : v.severity === "HIGH"
+                                              ? "bg-orange-950 text-orange-200 border-orange-700"
+                                              : v.severity === "MEDIUM" || v.severity === "MODERATE"
+                                              ? "bg-amber-950 text-amber-200 border-amber-700"
+                                              : "bg-zinc-800 text-zinc-300 border-zinc-700"
+                                          }`}
+                                        >
+                                          {v.score ? `${v.severity} (${v.score})` : v.severity || "HIGH"}
                                         </span>
-                                      )}
-                                      <span
-                                        className={`text-[10px] px-1.5 py-0.2 rounded shrink-0 font-bold uppercase border ${
-                                          v.severity === "CRITICAL"
-                                            ? "bg-rose-950 text-rose-200 border-rose-600"
-                                            : v.severity === "HIGH"
-                                            ? "bg-orange-950 text-orange-200 border-orange-700"
-                                            : v.severity === "MEDIUM" || v.severity === "MODERATE"
-                                            ? "bg-amber-950 text-amber-200 border-amber-700"
-                                            : "bg-zinc-800 text-zinc-300 border-zinc-700"
-                                        }`}
-                                      >
-                                        {v.score ? `${v.severity} (${v.score})` : v.severity || "HIGH"}
-                                      </span>
-                                      <span className="text-zinc-200 text-xs font-normal" title={v.summary}>
-                                        {v.summary || "Security vulnerability fix available in upstream release"}
-                                      </span>
+                                      </div>
+
+                                      <div className="shrink-0 flex items-center gap-1.5 text-[11px]">
+                                        {isMitigated === false ? (
+                                          <span className="bg-rose-900/90 text-rose-100 border border-rose-600 px-2 py-0.5 rounded font-bold">
+                                            Zero-Day (Unmitigated)
+                                          </span>
+                                        ) : fixedIn ? (
+                                          <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-2 py-0.5 rounded font-mono">
+                                            Fixed in {fixedIn}
+                                          </span>
+                                        ) : null}
+                                      </div>
                                     </div>
 
-                                    <div className="shrink-0 flex items-center gap-1.5 text-[10px]">
-                                      {isMitigated === false ? (
-                                        <span className="bg-rose-900/90 text-rose-100 border border-rose-600 px-1.5 py-0.5 rounded font-bold">
-                                          Zero-Day (Unmitigated)
-                                        </span>
-                                      ) : fixedIn ? (
-                                        <span className="bg-emerald-950 text-emerald-300 border border-emerald-700 px-1.5 py-0.5 rounded font-mono">
-                                          Fixed in {fixedIn}
-                                        </span>
-                                      ) : null}
-                                    </div>
+                                    <p className="text-zinc-200 text-xs font-sans leading-relaxed break-words">
+                                      {v.summary || "Security vulnerability fix available in upstream release"}
+                                    </p>
                                   </div>
                                 );
                               })}

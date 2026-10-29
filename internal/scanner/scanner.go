@@ -4,11 +4,16 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os/exec"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jankrloz/vanguard/internal/config"
@@ -170,6 +175,20 @@ func isSafeArg(s string) bool {
 	return !strings.ContainsAny(s, "\x00\r\n\t;&|`$")
 }
 
+// isMacOSSystemGem returns true when on macOS and the only `gem` in PATH is Apple's
+// deprecated, SIP-protected system Ruby 2.6 (/usr/bin/gem), whose default gems live
+// in /System/Library/Frameworks/Ruby.framework and cannot install modern Ruby >= 3.0 gems.
+func isMacOSSystemGem() bool {
+	if runtime.GOOS != "darwin" {
+		return false
+	}
+	gemPath, err := exec.LookPath("gem")
+	if err != nil {
+		return false
+	}
+	return gemPath == "/usr/bin/gem"
+}
+
 func (s *Scanner) scanMPM(ctx context.Context, ignoredManagers []string) ([]domain.Package, error) {
 	scanCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
@@ -180,6 +199,7 @@ func (s *Scanner) scanMPM(ctx context.Context, ignoredManagers []string) ([]doma
 
 	// Add ignore flags
 	hasCPAN := false
+	hasGem := false
 	for _, ign := range ignoredManagers {
 		if !isSafeArg(ign) {
 			continue
@@ -188,11 +208,19 @@ func (s *Scanner) scanMPM(ctx context.Context, ignoredManagers []string) ([]doma
 		if strings.EqualFold(ign, "cpan") {
 			hasCPAN = true
 		}
+		if strings.EqualFold(ign, "gem") {
+			hasGem = true
+		}
 	}
 
 	// Exclude macOS system Perl CPAN dual-lived core packages (2,140 modules) by default
 	if !hasCPAN {
 		args = append(args, "--no-cpan")
+	}
+
+	// Exclude macOS SIP-protected system Ruby 2.6 (/usr/bin/gem) unless user Ruby is active
+	if !hasGem && isMacOSSystemGem() {
+		args = append(args, "--no-gem")
 	}
 
 	args = append(args, "outdated", "--columns", "manager_id,package_id,installed_version,latest_version")
@@ -259,6 +287,33 @@ func ParseMPMOutput(r io.Reader) []domain.Package {
 	return packages
 }
 
+// cleanDescription strips YAML block scalar indicators (|-, |2, |, >-, >),
+// collapses multi-line descriptions into a single clean sentence, and caps length.
+func cleanDescription(raw string) string {
+	d := strings.TrimSpace(raw)
+	d = strings.TrimPrefix(d, "---")
+	d = strings.TrimSpace(d)
+	for _, prefix := range []string{"|-", "|+", "|2", "|4", "|", ">-", ">+", ">"} {
+		if strings.HasPrefix(d, prefix+"\n") || strings.HasPrefix(d, prefix+" ") || d == prefix {
+			d = strings.TrimSpace(strings.TrimPrefix(d, prefix))
+			break
+		}
+	}
+	lines := strings.Split(d, "\n")
+	var cleanLines []string
+	for _, l := range lines {
+		trimmed := strings.TrimSpace(l)
+		if trimmed != "" {
+			cleanLines = append(cleanLines, trimmed)
+		}
+	}
+	res := strings.Join(cleanLines, " ")
+	if len(res) > 220 {
+		res = res[:217] + "..."
+	}
+	return res
+}
+
 func enrichDescriptions(ctx context.Context, packages []domain.Package) {
 	var brewNames []string
 	for _, p := range packages {
@@ -271,34 +326,94 @@ func enrichDescriptions(ctx context.Context, packages []domain.Package) {
 		descMap := fetchBrewDescriptions(ctx, brewNames)
 		for i := range packages {
 			if desc, ok := descMap[packages[i].Name]; ok && desc != "" {
-				packages[i].Description = desc
+				packages[i].Description = cleanDescription(desc)
 			}
 		}
 	}
 
-	// For gems: if description is empty, try quick gem specification
+	// Concurrently enrich descriptions for gem, npm/pnpm/bun/yarn, pip/pipx/uv, and cargo
+	client := &http.Client{Timeout: 3 * time.Second}
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 8)
+
 	for i := range packages {
-		if packages[i].Manager == "gem" && packages[i].Description == "" && isSafeArg(packages[i].Name) {
-			subCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
-			out, err := exec.CommandContext(subCtx, "gem", "specification", packages[i].Name, "description").Output()
-			cancel()
-			if err == nil {
-				d := strings.TrimSpace(string(out))
-				d = strings.TrimPrefix(d, "--- ")
-				d = strings.TrimSpace(d)
-				if d != "" && !strings.Contains(d, "ERROR") {
-					packages[i].Description = d
+		if packages[i].Description != "" || !isSafeArg(packages[i].Name) {
+			continue
+		}
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			p := packages[idx]
+			mgr := strings.ToLower(p.Manager)
+			var desc string
+
+			switch mgr {
+			case "gem", "bundler":
+				subCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+				out, err := exec.CommandContext(subCtx, "gem", "specification", p.Name, "description").Output()
+				cancel()
+				if err == nil {
+					d := cleanDescription(string(out))
+					if d != "" && !strings.Contains(d, "ERROR") {
+						desc = d
+					}
+				}
+			case "npm", "pnpm", "yarn", "bun":
+				reqURL := fmt.Sprintf("https://registry.npmjs.org/%s/latest", url.PathEscape(p.Name))
+				if strings.HasPrefix(p.Name, "@") {
+					reqURL = fmt.Sprintf("https://registry.npmjs.org/%s", p.Name)
+				}
+				if req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil); err == nil {
+					if resp, err := client.Do(req); err == nil {
+						var data struct {
+							Description string `json:"description"`
+						}
+						_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&data)
+						_ = resp.Body.Close()
+						desc = cleanDescription(data.Description)
+					}
+				}
+			case "pip", "pipx", "uv", "uvx", "poetry", "pdm":
+				reqURL := fmt.Sprintf("https://pypi.org/pypi/%s/json", url.PathEscape(p.Name))
+				if req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil); err == nil {
+					if resp, err := client.Do(req); err == nil {
+						var data struct {
+							Info struct {
+								Summary string `json:"summary"`
+							} `json:"info"`
+						}
+						_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&data)
+						_ = resp.Body.Close()
+						desc = cleanDescription(data.Info.Summary)
+					}
+				}
+			case "cargo", "rust":
+				reqURL := fmt.Sprintf("https://crates.io/api/v1/crates/%s", url.PathEscape(p.Name))
+				if req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil); err == nil {
+					req.Header.Set("User-Agent", "vanguard-cli/0.2.0")
+					if resp, err := client.Do(req); err == nil {
+						var data struct {
+							Crate struct {
+								Description string `json:"description"`
+							} `json:"crate"`
+						}
+						_ = json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&data)
+						_ = resp.Body.Close()
+						desc = cleanDescription(data.Crate.Description)
+					}
 				}
 			}
-		}
+
+			if desc != "" {
+				packages[idx].Description = desc
+			}
+		}(i)
 	}
 
-	// Fallback to vulnerability summary if description is still empty
-	for i := range packages {
-		if packages[i].Description == "" && len(packages[i].Vulnerabilities) > 0 {
-			packages[i].Description = packages[i].Vulnerabilities[0].Summary
-		}
-	}
+	wg.Wait()
 }
 
 func fetchBrewDescriptions(ctx context.Context, names []string) map[string]string {

@@ -294,6 +294,9 @@ func (e *Executor) runStreamingCommand(cmd *exec.Cmd, onEvent EventCallback) err
 	}
 
 	var wg sync.WaitGroup
+	var streamErrMu sync.Mutex
+	var streamErrMsg string
+
 	streamReader := func(r io.Reader) {
 		defer wg.Done()
 		scanner := bufio.NewScanner(r)
@@ -303,11 +306,24 @@ func (e *Executor) runStreamingCommand(cmd *exec.Cmd, onEvent EventCallback) err
 				Type:    "log",
 				Message: line,
 			})
-			if strings.Contains(line, "FilePermissionError") || strings.Contains(line, "sudo: a password is required") {
+			if strings.Contains(line, "FilePermissionError") || strings.Contains(line, "sudo: a password is required") || strings.Contains(line, "Needs administrator rights") {
+				streamErrMu.Lock()
+				if streamErrMsg == "" {
+					streamErrMsg = "sudo authentication required or permission denied"
+				}
+				streamErrMu.Unlock()
 				onEvent(domain.UpgradeEvent{
 					Type:    "log",
 					Message: "⚠️ Sudo authentication required: prime credentials via 'vg' terminal command or 'sudo -v'",
 				})
+			}
+			if strings.Contains(line, "critical: Could not upgrade:") ||
+				strings.Contains(line, "still outdated") ||
+				strings.Contains(line, "ERROR:  While executing gem") ||
+				strings.HasPrefix(strings.TrimSpace(line), "✘ ") {
+				streamErrMu.Lock()
+				streamErrMsg = strings.TrimSpace(line)
+				streamErrMu.Unlock()
 			}
 		}
 	}
@@ -317,5 +333,13 @@ func (e *Executor) runStreamingCommand(cmd *exec.Cmd, onEvent EventCallback) err
 	go streamReader(stderr)
 
 	wg.Wait()
-	return cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		return err
+	}
+	streamErrMu.Lock()
+	defer streamErrMu.Unlock()
+	if streamErrMsg != "" {
+		return fmt.Errorf("%s", streamErrMsg)
+	}
+	return nil
 }
