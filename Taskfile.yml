@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  BIN: bin/up
+  BIN: bin/vanguard
   INSTALL_DIR: '{{.HOME}}/.local/bin'
 
 tasks:
@@ -31,7 +31,7 @@ tasks:
     desc: Compile Go backend binary with embedded assets
     deps: [build:web]
     cmds:
-      - cmd: go build -ldflags="-s -w" -o {{.BIN}} ./cmd/up
+      - cmd: go build -ldflags="-s -w" -o {{.BIN}} ./cmd/vanguard
     sources:
       - '**/*.go'
       - 'web/dist/**/*'
@@ -50,18 +50,20 @@ tasks:
       - go test -v ./...
 
   install:
-    desc: Install the compiled 'up' binary to ~/.local/bin/up
+    desc: Install the compiled binary to ~/.local/bin as vanguard, vg, and up
     deps: [build]
     preconditions:
       - sh: 'test -d {{.INSTALL_DIR}}'
         msg: 'Directory {{.INSTALL_DIR}} does not exist. Please create it or set INSTALL_DIR.'
     cmds:
-      - cp {{.BIN}} {{.INSTALL_DIR}}/up
-      - chmod +x {{.INSTALL_DIR}}/up
-      - echo "Installed up to {{.INSTALL_DIR}}/up"
+      - cp {{.BIN}} {{.INSTALL_DIR}}/vanguard
+      - chmod +x {{.INSTALL_DIR}}/vanguard
+      - ln -sf {{.INSTALL_DIR}}/vanguard {{.INSTALL_DIR}}/vg
+      - ln -sf {{.INSTALL_DIR}}/vanguard {{.INSTALL_DIR}}/up
+      - 'echo "Installed vanguard to {{.INSTALL_DIR}}/vanguard (aliases: vg, up)"'
 
   run:
-    desc: Run UP dashboard with Touch ID authentication
+    desc: Run Vanguard dashboard with Touch ID authentication
     deps: [build]
     cmds:
       - ./{{.BIN}}
@@ -70,4 +72,4 @@ tasks:
     desc: Run in development mode (with live HMR)
     cmds:
       - echo "Starting development server..."
-      - go run ./cmd/up --dev
+      - go run ./cmd/vanguard --dev

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jc/up/internal/domain"
+	"github.com/jankrloz/vanguard/internal/domain"
 )
 
 type BrewOutdatedResponse struct {

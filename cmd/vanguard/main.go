@@ -13,11 +13,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jc/up"
-	"github.com/jc/up/internal/auth"
-	"github.com/jc/up/internal/executor"
-	"github.com/jc/up/internal/scanner"
-	"github.com/jc/up/internal/server"
+	"github.com/jankrloz/vanguard"
+	"github.com/jankrloz/vanguard/internal/auth"
+	"github.com/jankrloz/vanguard/internal/executor"
+	"github.com/jankrloz/vanguard/internal/scanner"
+	"github.com/jankrloz/vanguard/internal/server"
 )
 
 func main() {
@@ -30,8 +30,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	fmt.Println("\n  ▲ UP — System Package & Dependency Updater")
-	fmt.Println("  ──────────────────────────────────────────")
+	fmt.Println("\n  ▲ VANGUARD — System Package & Dependency Updater")
+	fmt.Println("  ────────────────────────────────────────────────")
 
 	// 1. Biometric Touch ID pre-flight & Keepalive
 	if !*noSudo {
@@ -47,7 +47,7 @@ func main() {
 	}
 
 	// 2. Load embedded static assets
-	embeddedFS, err := up.StaticFS()
+	embeddedFS, err := vanguard.StaticFS()
 	if err != nil {
 		fmt.Printf("⚠️  Warning: embedded assets error: %v\n", err)
 	}
