@@ -9,7 +9,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -202,6 +204,7 @@ func (s *Scanner) scanMPM(ctx context.Context, ignoredManagers []string) ([]doma
 	// Add ignore flags
 	hasCPAN := false
 	hasGem := false
+	hasUV := false
 	for _, ign := range ignoredManagers {
 		if !isSafeArg(ign) {
 			continue
@@ -213,6 +216,9 @@ func (s *Scanner) scanMPM(ctx context.Context, ignoredManagers []string) ([]doma
 		if strings.EqualFold(ign, "gem") {
 			hasGem = true
 		}
+		if strings.EqualFold(ign, "uv") {
+			hasUV = true
+		}
 	}
 
 	// Exclude macOS system Perl CPAN dual-lived core packages (2,140 modules) by default
@@ -223,6 +229,13 @@ func (s *Scanner) scanMPM(ctx context.Context, ignoredManagers []string) ([]doma
 	// Exclude macOS SIP-protected system Ruby 2.6 (/usr/bin/gem) unless user Ruby is active
 	if !hasGem && isMacOSSystemGem() {
 		args = append(args, "--no-gem")
+	}
+
+	// Exclude mpm's virtualenv-only `uv` pip plugin when no VIRTUAL_ENV is active
+	// (global uv tools are managed via `uvx`; outside a venv `uv pip` inspects uv's
+	// read-only ~/.local/share/uv/python interpreter which uv forbids modifying).
+	if !hasUV && os.Getenv("VIRTUAL_ENV") == "" {
+		args = append(args, "--no-uv")
 	}
 
 	args = append(args, "outdated", "--columns", "manager_id,package_id,installed_version,latest_version")
@@ -269,6 +282,10 @@ func ParseMPMOutput(r io.Reader) []domain.Package {
 			installed := fields[2]
 			latest := fields[3]
 
+			if strings.EqualFold(mgr, "uvx") && isGitOrPathUVXTool(pkgID) {
+				continue
+			}
+
 			changeType, safe := domain.ClassifyChange(installed, latest)
 			pkg := domain.Package{
 				ID:             fmt.Sprintf("%s:%s", mgr, pkgID),
@@ -287,6 +304,25 @@ func ParseMPMOutput(r io.Reader) []domain.Package {
 	}
 
 	return packages
+}
+
+// isGitOrPathUVXTool checks if a uvx tool was installed from a Git repository or local path
+// rather than PyPI, avoiding false-positive PyPI version mismatches reported by mpm.
+func isGitOrPathUVXTool(pkgID string) bool {
+	if !isSafeArg(pkgID) {
+		return false
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return false
+	}
+	receiptPath := filepath.Join(home, ".local", "share", "uv", "tools", pkgID, "uv-receipt.toml")
+	data, err := os.ReadFile(receiptPath)
+	if err != nil {
+		return false
+	}
+	content := string(data)
+	return strings.Contains(content, "git = ") || strings.Contains(content, "path = ")
 }
 
 // cleanDescription strips YAML block scalar indicators (|-, |2, |, >-, >),

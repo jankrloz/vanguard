@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -32,7 +33,7 @@ func New() *Executor {
 func requiresPrivilegeEscalation(mgr string) bool {
 	// 1. User-scoped managers must NEVER run with sudo (prevents root-polluted ~/.npm, ~/.cargo, Homebrew aborts)
 	switch strings.ToLower(mgr) {
-	case "brew", "cask", "npm", "pnpm", "yarn", "cargo", "pip", "pipx", "mise", "asdf",
+	case "brew", "cask", "npm", "pnpm", "yarn", "cargo", "pip", "pipx", "uv", "uvx", "gcloud", "mise", "asdf",
 		"fisher", "antidote", "antigen", "zinit", "zplug", "rustup", "go", "composer":
 		return false
 	}
@@ -87,7 +88,66 @@ func isSafeIdentifier(s string) bool {
 	return !strings.ContainsAny(s, "\x00\r\n\t;&|`$")
 }
 
-// ExecuteUpgrades groups packages by manager and runs upgrades while streaming events.
+// buildUpgradeCommand constructs the authoritative upgrade command for a given manager.
+// Uses native CLIs for managers where mpm lacks support or mishandles arguments (e.g. brew custom taps,
+// gcloud components, uv system pip, uvx tools), falling back to mpm for remaining ecosystems.
+func buildUpgradeCommand(ctx context.Context, mgr string, names []string, onEvent EventCallback) *exec.Cmd {
+	lowerMgr := strings.ToLower(mgr)
+	switch lowerMgr {
+	case "brew":
+		if _, err := exec.LookPath("brew"); err == nil {
+			args := append([]string{"upgrade"}, names...)
+			cmd := exec.CommandContext(ctx, "brew", args...)
+			cmd.Env = append(os.Environ(), "HOMEBREW_NO_ENV_HINTS=1")
+			return cmd
+		}
+	case "cask":
+		if _, err := exec.LookPath("brew"); err == nil {
+			args := append([]string{"upgrade", "--cask"}, names...)
+			cmd := exec.CommandContext(ctx, "brew", args...)
+			cmd.Env = append(os.Environ(), "HOMEBREW_NO_ENV_HINTS=1")
+			return cmd
+		}
+	case "gcloud":
+		if _, err := exec.LookPath("gcloud"); err == nil {
+			return exec.CommandContext(ctx, "gcloud", "components", "update", "--quiet")
+		}
+	case "uv":
+		if _, err := exec.LookPath("uv"); err == nil {
+			args := append([]string{"pip", "install", "--system", "--upgrade"}, names...)
+			return exec.CommandContext(ctx, "uv", args...)
+		}
+	case "uvx":
+		if _, err := exec.LookPath("uv"); err == nil {
+			args := append([]string{"tool", "upgrade"}, names...)
+			return exec.CommandContext(ctx, "uv", args...)
+		}
+	case "pipx":
+		if _, err := exec.LookPath("pipx"); err == nil {
+			args := append([]string{"upgrade"}, names...)
+			return exec.CommandContext(ctx, "pipx", args...)
+		}
+	}
+
+	var args []string
+	if mgr != "" && mgr != "all" {
+		args = append(args, "--"+mgr)
+		if requiresPrivilegeEscalation(mgr) {
+			args = append(args, "--sudo")
+			if err := auth.EnsureSudo(); err != nil {
+				onEvent(domain.UpgradeEvent{
+					Type:    "log",
+					Message: fmt.Sprintf("⚠️ [%s] requires administrator privileges: %v. Please prime credentials via 'sudo -v' or terminal 'vg'", mgr, err),
+				})
+			}
+		}
+	}
+	args = append(args, "upgrade")
+	args = append(args, names...)
+	return exec.CommandContext(ctx, "mpm", args...)
+}
+
+// ExecuteUpgrades groups packages by manager in deterministic order and runs upgrades while streaming events.
 func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, onEvent EventCallback) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -110,7 +170,37 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 		byManager[p.Manager] = append(byManager[p.Manager], p)
 	}
 
-	for mgr, pkgList := range byManager {
+	// Deterministic manager ordering: managers with vulnerable packages first, then alphabetical
+	var managers []string
+	for mgr := range byManager {
+		managers = append(managers, mgr)
+	}
+	sort.Slice(managers, func(i, j int) bool {
+		hasVulnI := false
+		for _, p := range byManager[managers[i]] {
+			if p.HasVulnerability {
+				hasVulnI = true
+				break
+			}
+		}
+		hasVulnJ := false
+		for _, p := range byManager[managers[j]] {
+			if p.HasVulnerability {
+				hasVulnJ = true
+				break
+			}
+		}
+		if hasVulnI != hasVulnJ {
+			return hasVulnI
+		}
+		return managers[i] < managers[j]
+	})
+
+	succeededPackages := 0
+	failedPackages := 0
+
+	for _, mgr := range managers {
+		pkgList := byManager[mgr]
 		select {
 		case <-ctx.Done():
 			onEvent(domain.UpgradeEvent{
@@ -132,28 +222,12 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 			Message: fmt.Sprintf("Upgrading [%s] packages: %s", mgr, strings.Join(names, ", ")),
 		})
 
-		var args []string
-		if mgr != "" && mgr != "all" {
-			args = append(args, "--"+mgr)
-			if requiresPrivilegeEscalation(mgr) {
-				args = append(args, "--sudo")
-				// Prime administrator credentials via Touch ID / sudo before invoking MPM
-				if err := auth.EnsureSudo(); err != nil {
-					onEvent(domain.UpgradeEvent{
-						Type:    "log",
-						Message: fmt.Sprintf("⚠️ [%s] requires administrator privileges: %v. Please prime credentials via 'sudo -v' or terminal 'vg'", mgr, err),
-					})
-				}
-			}
-		}
-		args = append(args, "upgrade")
-		args = append(args, names...)
-		cmd := exec.CommandContext(ctx, "mpm", args...)
-
+		cmd := buildUpgradeCommand(ctx, mgr, names, onEvent)
 		err := e.runStreamingCommand(cmd, onEvent)
 		status := "ok"
 		if err != nil {
 			status = "failed"
+			failedPackages += len(pkgList)
 			onEvent(domain.UpgradeEvent{
 				Type:    "package_done",
 				Package: mgr,
@@ -161,11 +235,12 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 				Message: fmt.Sprintf("[%s] failed: %v", mgr, err),
 			})
 		} else {
+			succeededPackages += len(pkgList)
 			onEvent(domain.UpgradeEvent{
 				Type:    "package_done",
 				Package: mgr,
 				Status:  "ok",
-				Message: fmt.Sprintf("[%s] successfully upgraded", mgr),
+				Message: fmt.Sprintf("[%s] successfully upgraded (%d/%d)", mgr, len(pkgList), len(pkgList)),
 			})
 		}
 
@@ -182,9 +257,18 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 		}
 	}
 
+	if failedPackages > 0 {
+		msg := fmt.Sprintf("Upgrade completed with errors: %d succeeded, %d failed", succeededPackages, failedPackages)
+		onEvent(domain.UpgradeEvent{
+			Type:    "error",
+			Message: msg,
+		})
+		return fmt.Errorf("%d package(s) failed to upgrade", failedPackages)
+	}
+
 	onEvent(domain.UpgradeEvent{
 		Type:    "complete",
-		Message: "All requested upgrades finished",
+		Message: fmt.Sprintf("All %d requested package(s) upgraded successfully", succeededPackages),
 	})
 
 	return nil
@@ -279,6 +363,21 @@ func (e *Executor) ExecuteClean(ctx context.Context, onEvent EventCallback) erro
 	return nil
 }
 
+// isNoisyBoxLine filters out decorative ASCII/Unicode box borders and spinner frames
+// from subprocess logs so CLI and Web logs remain clean and readable.
+func isNoisyBoxLine(s string) bool {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return true
+	}
+	for _, prefix := range []string{"╭─", "├─", "╰─", "┌─", "└─", "╔═", "╠═", "╚═", "│ Package ID │"} {
+		if strings.HasPrefix(trimmed, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func (e *Executor) runStreamingCommand(cmd *exec.Cmd, onEvent EventCallback) error {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -302,11 +401,14 @@ func (e *Executor) runStreamingCommand(cmd *exec.Cmd, onEvent EventCallback) err
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
 			line := scanner.Text()
-			onEvent(domain.UpgradeEvent{
-				Type:    "log",
-				Message: line,
-			})
-			if strings.Contains(line, "FilePermissionError") || strings.Contains(line, "sudo: a password is required") || strings.Contains(line, "Needs administrator rights") {
+			if idx := strings.LastIndex(line, "\r"); idx != -1 {
+				line = line[idx+1:]
+			}
+			trimmed := strings.TrimSpace(line)
+
+			if strings.Contains(trimmed, "FilePermissionError") ||
+				strings.Contains(trimmed, "sudo: a password is required") ||
+				strings.Contains(trimmed, "Needs administrator rights") {
 				streamErrMu.Lock()
 				if streamErrMsg == "" {
 					streamErrMsg = "sudo authentication required or permission denied"
@@ -317,13 +419,28 @@ func (e *Executor) runStreamingCommand(cmd *exec.Cmd, onEvent EventCallback) err
 					Message: "⚠️ Sudo authentication required: prime credentials via 'vg' terminal command or 'sudo -v'",
 				})
 			}
-			if strings.Contains(line, "critical: Could not upgrade:") ||
-				strings.Contains(line, "still outdated") ||
-				strings.Contains(line, "ERROR:  While executing gem") ||
-				strings.HasPrefix(strings.TrimSpace(line), "✘ ") {
+
+			if strings.Contains(trimmed, "critical: Could not upgrade:") ||
+				strings.Contains(trimmed, "is not recognized by any of the selected managers") ||
+				strings.Contains(trimmed, "critical: No manager selected") ||
+				strings.Contains(trimmed, "ERROR:  While executing gem") ||
+				strings.HasPrefix(trimmed, "✘ ") {
 				streamErrMu.Lock()
-				streamErrMsg = strings.TrimSpace(line)
+				streamErrMsg = trimmed
 				streamErrMu.Unlock()
+			} else if strings.Contains(trimmed, "still outdated") {
+				streamErrMu.Lock()
+				if streamErrMsg == "" {
+					streamErrMsg = "package remained at previous version after upgrade command"
+				}
+				streamErrMu.Unlock()
+			}
+
+			if !isNoisyBoxLine(trimmed) {
+				onEvent(domain.UpgradeEvent{
+					Type:    "log",
+					Message: trimmed,
+				})
 			}
 		}
 	}
@@ -334,6 +451,9 @@ func (e *Executor) runStreamingCommand(cmd *exec.Cmd, onEvent EventCallback) err
 
 	wg.Wait()
 	if err := cmd.Wait(); err != nil {
+		if streamErrMsg != "" {
+			return fmt.Errorf("%s", streamErrMsg)
+		}
 		return err
 	}
 	streamErrMu.Lock()

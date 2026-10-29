@@ -229,9 +229,14 @@ func runApply(ctx context.Context, args []string) int {
 		fmt.Fprintf(os.Stderr, "  %s✗ Scan failed: %v%s\n", ui.Rose, err, ui.Reset)
 		return 1
 	}
-	stopSpinner(fmt.Sprintf("Scan completed (%d candidate packages found)", len(res.Packages)))
+	stopSpinner(fmt.Sprintf("Discovered %d outdated packages (%d safe/security, %d major breaking)",
+		len(res.Packages),
+		res.Summary.SafeCount+res.Summary.SecurityFixCount,
+		res.Summary.MajorCount,
+	))
 
 	var candidates []domain.Package
+	var skippedMajors []domain.Package
 	for _, p := range res.Packages {
 		if p.Pinned {
 			continue
@@ -252,10 +257,28 @@ func runApply(ctx context.Context, args []string) int {
 		// Default safe mode: minor, patch, or security fix
 		if p.Safe || p.HasVulnerability {
 			candidates = append(candidates, p)
+		} else if p.ChangeType == domain.ChangeMajor {
+			skippedMajors = append(skippedMajors, p)
 		}
 	}
 
 	if len(candidates) == 0 {
+		if len(skippedMajors) > 0 {
+			fmt.Printf("  %s %s\n",
+				ui.StyleEmeraldBold.Render("✓"),
+				ui.StyleWhite.Render("All safe minor/patch and security updates are up to date."),
+			)
+			mgrW, nameW, verW := computeColumnWidths(skippedMajors)
+			fmt.Println(ui.SectionHeader("HELD BACK — MAJOR BREAKING UPDATES", len(skippedMajors), ui.Amber))
+			for _, p := range skippedMajors {
+				fmt.Print(formatPackageRow(p, mgrW, nameW, verW))
+			}
+			fmt.Printf("\n  %s %s\n\n",
+				ui.StyleAmberBold.Render("ℹ"),
+				ui.StyleZinc.Render("Run 'vg apply --all' to upgrade major breaking releases."),
+			)
+			return 0
+		}
 		fmt.Printf("  %s✓ All packages are up to date and protected.%s\n\n", ui.Emerald, ui.Reset)
 		return 0
 	}
@@ -265,6 +288,12 @@ func runApply(ctx context.Context, args []string) int {
 	fmt.Println(ui.SectionHeader("QUEUED FOR UPGRADE", len(candidates), "#00F0FF"))
 	for _, p := range candidates {
 		fmt.Print(formatPackageRow(p, mgrWidth, nameWidth, verWidth))
+	}
+	if len(skippedMajors) > 0 {
+		fmt.Printf("\n  %s %s\n",
+			ui.StyleAmberBold.Render("ℹ"),
+			ui.StyleZinc.Render(fmt.Sprintf("%d major breaking update(s) held back for safety (pass --all to include).", len(skippedMajors))),
+		)
 	}
 
 	if !yes {
@@ -282,17 +311,29 @@ func runApply(ctx context.Context, args []string) int {
 	execEngine := executor.New()
 	totalCandidates := len(candidates)
 	completedCount := 0
+	pkgCountByMgr := make(map[string]int)
+	for _, p := range candidates {
+		pkgCountByMgr[p.Manager]++
+	}
 
 	err = execEngine.ExecuteUpgrades(ctx, candidates, func(ev domain.UpgradeEvent) {
 		switch ev.Type {
 		case "start":
-			fmt.Printf("  %s %s\n", ui.StyleCyanBold.Render("▶"), ev.Message)
+			fmt.Printf("  %s %s\n", ui.StyleCyanBold.Render("▶"), ui.StyleZinc.Render(ev.Message))
 		case "package_start":
-			fmt.Printf("\n  %s %s  %s\n", ui.StyleCyanBold.Render("==>"), ui.StyleWhiteBold.Render(ev.Message), ui.RenderProgress(completedCount, totalCandidates))
+			fmt.Printf("\n  %s %s  %s\n",
+				ui.StyleCyanBold.Render("==>"),
+				ui.BadgeManager(ev.Package),
+				ui.StyleWhiteBold.Render(strings.TrimPrefix(ev.Message, fmt.Sprintf("Upgrading [%s] packages: ", ev.Package))),
+			)
 		case "log":
-			fmt.Printf("    %s\n", ui.StyleZinc.Render(ev.Message))
+			fmt.Printf("      %s %s\n", ui.StyleSubtle.Render("│"), ui.StyleZinc.Render(ev.Message))
 		case "package_done":
-			completedCount++
+			batch := pkgCountByMgr[ev.Package]
+			if batch <= 0 {
+				batch = 1
+			}
+			completedCount += batch
 			if ev.Status == "ok" {
 				fmt.Printf("  %s  %s\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message), ui.RenderProgress(completedCount, totalCandidates))
 			} else {
@@ -306,7 +347,6 @@ func runApply(ctx context.Context, args []string) int {
 	})
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "  %s\n", ui.StyleRoseBold.Render(fmt.Sprintf("✗ Upgrade run failed: %v", err)))
 		return 1
 	}
 
@@ -333,25 +373,49 @@ func runHistory(args []string) int {
 	}
 
 	mgrWidth := 4
+	nameWidth := 18
+	verWidth := 15
 	for _, e := range entries {
 		if len(e.Manager) > mgrWidth {
 			mgrWidth = len(e.Manager)
 		}
+		cleanPkg := strings.TrimPrefix(e.PackageID, e.Manager+":")
+		if len(cleanPkg) > nameWidth {
+			nameWidth = len(cleanPkg)
+		}
+		vLen := len(e.FromVersion) + 3 + len(e.ToVersion)
+		if vLen > verWidth {
+			verWidth = vLen
+		}
+	}
+	if nameWidth > 28 {
+		nameWidth = 28
+	}
+	if verWidth > 26 {
+		verWidth = 26
 	}
 
 	for _, e := range entries {
-		statusBadge := ui.StyleSafeBadge.Render("OK")
+		statusBadge := ui.StyleSafeBadge.Render("✓ OK")
 		if e.Status != "ok" {
-			statusBadge = ui.StyleCriticalBadge.Render("FAILED")
+			statusBadge = ui.StyleCriticalBadge.Render("✗ FAILED")
 		}
 		cleanPkg := strings.TrimPrefix(e.PackageID, e.Manager+":")
+		if len(cleanPkg) > nameWidth {
+			cleanPkg = cleanPkg[:nameWidth-1] + "…"
+		}
+		namePad := strings.Repeat(" ", max(0, nameWidth-len(cleanPkg)))
 
-		fmt.Printf("  %s  %s  %-22s  %s %s  %s\n",
+		verRuneLen := len(e.FromVersion) + 3 + len(e.ToVersion)
+		verPad := strings.Repeat(" ", max(0, verWidth-verRuneLen))
+		styledVer := ui.StyleSubtle.Render(e.FromVersion+" →") + " " + ui.StyleWhiteBold.Render(e.ToVersion) + verPad
+
+		fmt.Printf("  %s  %s  %s%s  %s  %s\n",
 			ui.StyleSubtle.Render(e.Timestamp.Format("2006-01-02 15:04:05")),
 			ui.BadgeManagerPadded(e.Manager, mgrWidth),
 			ui.StyleWhiteBold.Render(cleanPkg),
-			ui.StyleSubtle.Render(e.FromVersion+" →"),
-			ui.StyleWhiteBold.Render(e.ToVersion),
+			namePad,
+			styledVer,
 			statusBadge,
 		)
 	}

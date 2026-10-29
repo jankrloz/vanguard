@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -26,24 +27,36 @@ const Version = "0.3.0"
 
 func printUsage() {
 	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
-	fmt.Printf(`Usage:
-  vg [command] [flags]
+	fmt.Printf("  %s\n", ui.StyleWhiteBold.Render("USAGE"))
+	fmt.Printf("    %s %s\n\n", ui.StyleCyanBold.Render("vg"), ui.StyleZinc.Render("[command] [flags]"))
 
-Commands:
-  check      Scan packages and print security status table (exits 1 on urgent CVEs)
-  apply      Execute non-interactive CLI package upgrades directly in terminal
-  history    View local persistent audit log (~/.local/state/vanguard/history.jsonl)
-  sweep      Run deep system-wide maintenance sweep via Topgrade (git, toolchains, firmware)
-  monitor    Run background security monitor daemon with macOS alerts
-  dashboard  Launch interactive web control dashboard (default)
-  version    Print Vanguard version and platform information
+	fmt.Printf("  %s\n", ui.StyleWhiteBold.Render("COMMANDS"))
+	cmds := [][2]string{
+		{"check", "Scan packages and print security status table (exits 1 on urgent CVEs)"},
+		{"apply", "Execute CLI package upgrades directly in terminal (--security-only, --all, -y)"},
+		{"history", "View persistent upgrade audit trail (~/.local/state/vanguard/history.jsonl)"},
+		{"sweep", "Run deep system-wide maintenance sweep via Topgrade (git, toolchains, firmware)"},
+		{"monitor", "Run background security monitor daemon with desktop alert notifications"},
+		{"dashboard", "Launch interactive Web Control Center (default)"},
+		{"version", "Print Vanguard version and platform information"},
+	}
+	for _, c := range cmds {
+		pad := strings.Repeat(" ", max(0, 12-len(c[0])))
+		fmt.Printf("    %s%s%s\n", ui.StyleCyanBold.Render(c[0]), pad, ui.StyleZinc.Render(c[1]))
+	}
 
-Dashboard Flags:
-  -port int     HTTP server port (default 9099)
-  -no-web       Do not automatically open dashboard in browser (headless daemon mode)
-  -no-sudo      Skip privilege pre-flight priming
-  -dev          Run in development mode (reverse proxy to Vite dev server)
-`)
+	fmt.Printf("\n  %s\n", ui.StyleWhiteBold.Render("DASHBOARD FLAGS"))
+	flags := [][2]string{
+		{"-port int", "HTTP server port (default 9099)"},
+		{"-no-web", "Run server in headless background mode without opening a browser"},
+		{"-no-sudo", "Skip privilege pre-flight priming"},
+		{"-dev", "Run in development mode (reverse proxy to Vite dev server)"},
+	}
+	for _, f := range flags {
+		pad := strings.Repeat(" ", max(0, 12-len(f[0])))
+		fmt.Printf("    %s%s%s\n", ui.StyleWhiteBold.Render(f[0]), pad, ui.StyleZinc.Render(f[1]))
+	}
+	fmt.Println()
 }
 
 func main() {
