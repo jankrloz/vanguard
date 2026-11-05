@@ -482,7 +482,8 @@ func (e *Executor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, o
 }
 
 // ExecuteTopgrade triggers a deep system sweep through Topgrade.
-func (e *Executor) ExecuteTopgrade(ctx context.Context, onEvent EventCallback) error {
+// Any extra args (e.g. -n/--dry-run, --only, --disable, --sudoloop) are forwarded directly.
+func (e *Executor) ExecuteTopgrade(ctx context.Context, args []string, onEvent EventCallback) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -500,7 +501,11 @@ func (e *Executor) ExecuteTopgrade(ctx context.Context, onEvent EventCallback) e
 		return fmt.Errorf("topgrade not installed: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, topgradePath, "--yes")
+	cmdArgs := []string{"--yes"}
+	if len(args) > 0 {
+		cmdArgs = args
+	}
+	cmd := exec.CommandContext(ctx, topgradePath, cmdArgs...)
 	err = e.runStreamingCommand(cmd, onEvent)
 
 	status := "ok"
@@ -537,29 +542,101 @@ func (e *Executor) ExecuteTopgrade(ctx context.Context, onEvent EventCallback) e
 	return nil
 }
 
-// ExecuteClean runs system cleanup (Mole clean or brew cleanup) and streams output.
-func (e *Executor) ExecuteClean(ctx context.Context, onEvent EventCallback) error {
+// ExecuteDoctor runs cross-manager diagnostic health checks via `mpm doctor`.
+func (e *Executor) ExecuteDoctor(ctx context.Context, args []string, onEvent EventCallback) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	onEvent(domain.UpgradeEvent{
 		Type:    "start",
-		Message: "Starting system cleanup...",
+		Message: "Running cross-manager diagnostics via MPM doctor...",
 	})
 
-	if path, err := exec.LookPath("mo"); err == nil && path != "" {
+	mpmPath, err := exec.LookPath("mpm")
+	if err != nil {
+		onEvent(domain.UpgradeEvent{
+			Type:    "error",
+			Message: "mpm executable not found in PATH",
+		})
+		return fmt.Errorf("mpm not installed: %w", err)
+	}
+
+	cmdArgs := []string{"--accessible", "--no-color", "doctor"}
+	if len(args) > 0 {
+		cmdArgs = append(cmdArgs, args...)
+	}
+	cmd := exec.CommandContext(ctx, mpmPath, cmdArgs...)
+	err = e.runStreamingCommand(cmd, onEvent)
+
+	onEvent(domain.UpgradeEvent{
+		Type:    "complete",
+		Message: "Doctor diagnostics completed",
+	})
+	return err
+}
+
+// ExecuteAudit runs macOS security posture checks via Raccoon (`rcc audit`).
+func (e *Executor) ExecuteAudit(ctx context.Context, args []string, onEvent EventCallback) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	onEvent(domain.UpgradeEvent{
+		Type:    "start",
+		Message: "Running macOS security posture audit via Raccoon...",
+	})
+
+	rccPath, err := exec.LookPath("rcc")
+	if err != nil {
+		onEvent(domain.UpgradeEvent{
+			Type:    "error",
+			Message: "rcc (Raccoon) executable not found in PATH",
+		})
+		return fmt.Errorf("rcc not installed: %w", err)
+	}
+
+	cmdArgs := []string{"audit"}
+	if len(args) > 0 {
+		cmdArgs = append(cmdArgs, args...)
+	}
+	cmd := exec.CommandContext(ctx, rccPath, cmdArgs...)
+	err = e.runStreamingCommand(cmd, onEvent)
+
+	onEvent(domain.UpgradeEvent{
+		Type:    "complete",
+		Message: "Security posture audit completed",
+	})
+	return err
+}
+
+// ExecuteClean runs system cleanup via `mpm cleanup` and `topgrade --cleanup -y`.
+func (e *Executor) ExecuteClean(ctx context.Context, args []string, onEvent EventCallback) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	onEvent(domain.UpgradeEvent{
+		Type:    "start",
+		Message: "Starting unified system cleanup...",
+	})
+
+	if mpmPath, err := exec.LookPath("mpm"); err == nil {
 		onEvent(domain.UpgradeEvent{
 			Type:    "log",
-			Message: "Running Mole cleanup (`mo clean`)...",
+			Message: "Running Meta Package Manager cache cleanup (`mpm cleanup`)...",
 		})
-		cmd := exec.CommandContext(ctx, "mo", "clean", "--dry-run=false")
+		cleanArgs := []string{"--accessible", "--no-color", "cleanup"}
+		if len(args) > 0 {
+			cleanArgs = append(cleanArgs, args...)
+		}
+		cmd := exec.CommandContext(ctx, mpmPath, cleanArgs...)
 		_ = e.runStreamingCommand(cmd, onEvent)
-	} else {
+	}
+
+	if tgPath, err := exec.LookPath("topgrade"); err == nil {
 		onEvent(domain.UpgradeEvent{
 			Type:    "log",
-			Message: "Running `brew cleanup -s`...",
+			Message: "Running Topgrade system cleanup (`topgrade --cleanup -y`)...",
 		})
-		cmd := exec.CommandContext(ctx, "brew", "cleanup", "-s")
+		cmd := exec.CommandContext(ctx, tgPath, "--cleanup", "-y")
 		_ = e.runStreamingCommand(cmd, onEvent)
 	}
 
@@ -568,6 +645,61 @@ func (e *Executor) ExecuteClean(ctx context.Context, onEvent EventCallback) erro
 		Message: "Cleanup complete",
 	})
 	return nil
+}
+
+// ExecuteSnapshot dumps cross-manager package inventory to a TOML manifest or Brewfile via `mpm dump`.
+func (e *Executor) ExecuteSnapshot(ctx context.Context, args []string, onEvent EventCallback) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	mpmPath, err := exec.LookPath("mpm")
+	if err != nil {
+		return fmt.Errorf("mpm not installed: %w", err)
+	}
+	cmdArgs := append([]string{"dump"}, args...)
+	cmd := exec.CommandContext(ctx, mpmPath, cmdArgs...)
+	return e.runStreamingCommand(cmd, onEvent)
+}
+
+// ExecuteRestore restores cross-manager packages from a TOML manifest via `mpm restore`.
+func (e *Executor) ExecuteRestore(ctx context.Context, args []string, onEvent EventCallback) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	mpmPath, err := exec.LookPath("mpm")
+	if err != nil {
+		return fmt.Errorf("mpm not installed: %w", err)
+	}
+	cmdArgs := append([]string{"restore"}, args...)
+	cmd := exec.CommandContext(ctx, mpmPath, cmdArgs...)
+	return e.runStreamingCommand(cmd, onEvent)
+}
+
+// ExecuteSBOM exports cross-manager package inventory to an SBOM document via `mpm sbom`.
+func (e *Executor) ExecuteSBOM(ctx context.Context, args []string, onEvent EventCallback) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	mpmPath, err := exec.LookPath("mpm")
+	if err != nil {
+		return fmt.Errorf("mpm not installed: %w", err)
+	}
+	cmdArgs := append([]string{"sbom"}, args...)
+	cmd := exec.CommandContext(ctx, mpmPath, cmdArgs...)
+	return e.runStreamingCommand(cmd, onEvent)
+}
+
+// ExecuteManagers lists all package managers detected by MPM.
+func (e *Executor) ExecuteManagers(ctx context.Context, onEvent EventCallback) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	mpmPath, err := exec.LookPath("mpm")
+	if err != nil {
+		return fmt.Errorf("mpm not installed: %w", err)
+	}
+	cmd := exec.CommandContext(ctx, mpmPath, "--accessible", "--no-color", "managers")
+	return e.runStreamingCommand(cmd, onEvent)
 }
 
 // isNoisyBoxLine filters out decorative ASCII/Unicode box borders and spinner frames

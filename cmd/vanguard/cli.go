@@ -476,7 +476,7 @@ func runMonitor(ctx context.Context, args []string) int {
 	}
 }
 
-func runSweep(ctx context.Context) int {
+func runSweep(ctx context.Context, args []string) int {
 	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
 	fmt.Printf("  %s\n", ui.StyleWhiteBold.Render("Deep System Maintenance Sweep (Topgrade)"))
 	fmt.Printf("  %s\n", ui.StyleSubtle.Render(strings.Repeat("─", 76)))
@@ -489,7 +489,7 @@ func runSweep(ctx context.Context) int {
 	_ = config.EnsureMPMConfig()
 
 	execEngine := executor.New()
-	err := execEngine.ExecuteTopgrade(ctx, func(ev domain.UpgradeEvent) {
+	err := execEngine.ExecuteTopgrade(ctx, args, func(ev domain.UpgradeEvent) {
 		switch ev.Type {
 		case "start":
 			fmt.Printf("  %s %s\n", ui.StyleCyanBold.Render("▶"), ev.Message)
@@ -510,6 +510,179 @@ func runSweep(ctx context.Context) int {
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "  %s\n\n", ui.StyleRoseBold.Render(fmt.Sprintf("✗ Sweep failed: %v", err)))
+		return 1
+	}
+	return 0
+}
+
+func runDoctor(ctx context.Context, args []string) int {
+	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
+	fmt.Printf("  %s\n", ui.StyleWhiteBold.Render("Package Manager Health Diagnostics (MPM Doctor)"))
+	fmt.Printf("  %s\n\n", ui.StyleSubtle.Render(strings.Repeat("─", 76)))
+
+	_ = auth.EnsureSudo()
+	_ = config.EnsureMPMConfig()
+
+	execEngine := executor.New()
+	err := execEngine.ExecuteDoctor(ctx, args, func(ev domain.UpgradeEvent) {
+		switch ev.Type {
+		case "start":
+			fmt.Printf("  %s %s\n\n", ui.StyleCyanBold.Render("▶"), ui.StyleZinc.Render(ev.Message))
+		case "log":
+			msg := ev.Message
+			if strings.HasPrefix(msg, "✓") {
+				fmt.Printf("  %s\n", ui.StyleEmeraldBold.Render(msg))
+			} else if strings.HasPrefix(msg, "✘") {
+				fmt.Printf("  %s\n", ui.StyleRoseBold.Render(msg))
+			} else if strings.HasPrefix(msg, "Warning:") || strings.HasPrefix(msg, "warning:") {
+				fmt.Printf("  %s\n", ui.StyleAmberBold.Render(msg))
+			} else {
+				fmt.Printf("  %s\n", ui.StyleZinc.Render(msg))
+			}
+		case "complete":
+			fmt.Printf("\n  %s\n\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message))
+		case "error":
+			fmt.Printf("\n  %s\n\n", ui.StyleRoseBold.Render("✗ "+ev.Message))
+		}
+	})
+
+	if err != nil {
+		return 1
+	}
+	return 0
+}
+
+func runAudit(ctx context.Context, args []string) int {
+	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
+	fmt.Printf("  %s\n", ui.StyleWhiteBold.Render("Host Security Posture Audit (Raccoon / rcc)"))
+	fmt.Printf("  %s\n\n", ui.StyleSubtle.Render(strings.Repeat("─", 76)))
+
+	_ = auth.EnsureSudo()
+
+	execEngine := executor.New()
+	err := execEngine.ExecuteAudit(ctx, args, func(ev domain.UpgradeEvent) {
+		switch ev.Type {
+		case "start":
+			fmt.Printf("  %s %s\n\n", ui.StyleCyanBold.Render("▶"), ui.StyleZinc.Render(ev.Message))
+		case "log":
+			fmt.Printf("  %s\n", ui.StyleZinc.Render(ev.Message))
+		case "complete":
+			fmt.Printf("\n  %s\n\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message))
+		case "error":
+			fmt.Printf("\n  %s\n\n", ui.StyleRoseBold.Render("✗ "+ev.Message))
+		}
+	})
+
+	if err != nil {
+		return 1
+	}
+	return 0
+}
+
+func runClean(ctx context.Context, args []string) int {
+	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
+	fmt.Printf("  %s\n", ui.StyleWhiteBold.Render("System & Package Cache Cleanup (MPM + Topgrade)"))
+	fmt.Printf("  %s\n\n", ui.StyleSubtle.Render(strings.Repeat("─", 76)))
+
+	_ = auth.EnsureSudo()
+	_ = config.EnsureMPMConfig()
+
+	execEngine := executor.New()
+	err := execEngine.ExecuteClean(ctx, args, func(ev domain.UpgradeEvent) {
+		switch ev.Type {
+		case "start":
+			fmt.Printf("  %s %s\n", ui.StyleCyanBold.Render("▶"), ui.StyleZinc.Render(ev.Message))
+		case "log":
+			fmt.Printf("    %s\n", ui.StyleZinc.Render(ev.Message))
+		case "complete":
+			fmt.Printf("\n  %s\n\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message))
+		case "error":
+			fmt.Printf("\n  %s\n\n", ui.StyleRoseBold.Render("✗ "+ev.Message))
+		}
+	})
+
+	if err != nil {
+		return 1
+	}
+	return 0
+}
+
+func runSnapshot(ctx context.Context, args []string) int {
+	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
+	fmt.Printf("  %s\n", ui.StyleWhiteBold.Render("Declarative Package Inventory Snapshot (MPM Dump)"))
+	fmt.Printf("  %s\n\n", ui.StyleSubtle.Render(strings.Repeat("─", 76)))
+
+	execEngine := executor.New()
+	err := execEngine.ExecuteSnapshot(ctx, args, func(ev domain.UpgradeEvent) {
+		if ev.Type == "log" {
+			fmt.Println(ev.Message)
+		}
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "  %s\n\n", ui.StyleRoseBold.Render(fmt.Sprintf("✗ Snapshot failed: %v", err)))
+		return 1
+	}
+	return 0
+}
+
+func runRestore(ctx context.Context, args []string) int {
+	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
+	fmt.Printf("  %s\n", ui.StyleWhiteBold.Render("Restore Package Inventory (MPM Restore)"))
+	fmt.Printf("  %s\n\n", ui.StyleSubtle.Render(strings.Repeat("─", 76)))
+
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "  %s\n\n", ui.StyleRoseBold.Render("✗ Missing manifest path. Usage: vg restore <packages.toml>"))
+		return 1
+	}
+
+	_ = auth.EnsureSudo()
+	_ = config.EnsureMPMConfig()
+
+	execEngine := executor.New()
+	err := execEngine.ExecuteRestore(ctx, args, func(ev domain.UpgradeEvent) {
+		switch ev.Type {
+		case "start":
+			fmt.Printf("  %s %s\n", ui.StyleCyanBold.Render("▶"), ui.StyleZinc.Render(ev.Message))
+		case "log":
+			fmt.Printf("    %s\n", ui.StyleZinc.Render(ev.Message))
+		case "complete":
+			fmt.Printf("\n  %s\n\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message))
+		case "error":
+			fmt.Printf("\n  %s\n\n", ui.StyleRoseBold.Render("✗ "+ev.Message))
+		}
+	})
+	if err != nil {
+		return 1
+	}
+	return 0
+}
+
+func runSBOM(ctx context.Context, args []string) int {
+	execEngine := executor.New()
+	err := execEngine.ExecuteSBOM(ctx, args, func(ev domain.UpgradeEvent) {
+		if ev.Type == "log" {
+			fmt.Println(ev.Message)
+		}
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "✗ SBOM generation failed: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func runManagers(ctx context.Context, args []string) int {
+	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
+	fmt.Printf("  %s\n", ui.StyleWhiteBold.Render("Active Package Managers (MPM)"))
+	fmt.Printf("  %s\n\n", ui.StyleSubtle.Render(strings.Repeat("─", 76)))
+
+	execEngine := executor.New()
+	err := execEngine.ExecuteManagers(ctx, func(ev domain.UpgradeEvent) {
+		if ev.Type == "log" {
+			fmt.Println("  " + ev.Message)
+		}
+	})
+	if err != nil {
 		return 1
 	}
 	return 0

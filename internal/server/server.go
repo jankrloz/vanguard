@@ -30,8 +30,10 @@ type Scanner interface {
 // Executor interface decouples the server from system execution engines.
 type Executor interface {
 	ExecuteUpgrades(ctx context.Context, pkgs []domain.Package, onEvent executor.EventCallback) error
-	ExecuteClean(ctx context.Context, onEvent executor.EventCallback) error
-	ExecuteTopgrade(ctx context.Context, onEvent executor.EventCallback) error
+	ExecuteClean(ctx context.Context, args []string, onEvent executor.EventCallback) error
+	ExecuteTopgrade(ctx context.Context, args []string, onEvent executor.EventCallback) error
+	ExecuteDoctor(ctx context.Context, args []string, onEvent executor.EventCallback) error
+	ExecuteAudit(ctx context.Context, args []string, onEvent executor.EventCallback) error
 }
 
 type Config struct {
@@ -71,6 +73,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/upgrade", s.handleUpgrade)
 	s.mux.HandleFunc("/api/clean", s.handleClean)
 	s.mux.HandleFunc("/api/topgrade", s.handleTopgrade)
+	s.mux.HandleFunc("/api/doctor", s.handleDoctor)
+	s.mux.HandleFunc("/api/audit", s.handleAudit)
 	s.mux.HandleFunc("/api/history", s.handleHistory)
 	s.mux.HandleFunc("/api/config/pin", s.handlePin)
 	s.mux.HandleFunc("/api/events", s.handleEvents)
@@ -315,7 +319,7 @@ func (s *Server) handleClean(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 
-		_ = s.cfg.Executor.ExecuteClean(ctx, func(ev domain.UpgradeEvent) {
+		_ = s.cfg.Executor.ExecuteClean(ctx, nil, func(ev domain.UpgradeEvent) {
 			s.broadcastEvent(ev)
 		})
 	}()
@@ -342,7 +346,7 @@ func (s *Server) handleTopgrade(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
 
-		_ = s.cfg.Executor.ExecuteTopgrade(ctx, func(ev domain.UpgradeEvent) {
+		_ = s.cfg.Executor.ExecuteTopgrade(ctx, nil, func(ev domain.UpgradeEvent) {
 			s.broadcastEvent(ev)
 		})
 	}()
@@ -351,6 +355,60 @@ func (s *Server) handleTopgrade(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status":  "started",
 		"message": "Topgrade system sweep queued",
+	})
+}
+
+func (s *Server) handleDoctor(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.cfg.Executor == nil {
+		http.Error(w, "Executor not configured", http.StatusInternalServerError)
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		defer cancel()
+
+		_ = s.cfg.Executor.ExecuteDoctor(ctx, nil, func(ev domain.UpgradeEvent) {
+			s.broadcastEvent(ev)
+		})
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":  "started",
+		"message": "Doctor health diagnostics queued",
+	})
+}
+
+func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.cfg.Executor == nil {
+		http.Error(w, "Executor not configured", http.StatusInternalServerError)
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		defer cancel()
+
+		_ = s.cfg.Executor.ExecuteAudit(ctx, nil, func(ev domain.UpgradeEvent) {
+			s.broadcastEvent(ev)
+		})
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":  "started",
+		"message": "Host security posture audit queued",
 	})
 }
 

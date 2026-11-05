@@ -55,6 +55,30 @@ export async function triggerTopgrade(): Promise<{ status: string }> {
   return res.json();
 }
 
+export async function triggerDoctor(): Promise<{ status: string }> {
+  const res = await fetch(`${BASE_URL}/api/doctor`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || "Failed to trigger health doctor");
+  }
+  return res.json();
+}
+
+export async function triggerAudit(): Promise<{ status: string }> {
+  const res = await fetch(`${BASE_URL}/api/audit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || "Failed to trigger security audit");
+  }
+  return res.json();
+}
+
 export async function fetchHistory(limit = 50): Promise<HistoryEntry[]> {
   const res = await fetch(`${BASE_URL}/api/history?limit=${limit}`);
   if (!res.ok) throw new Error("Failed to fetch upgrade history");

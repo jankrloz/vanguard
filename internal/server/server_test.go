@@ -31,13 +31,23 @@ func (m *mockExecutor) ExecuteUpgrades(ctx context.Context, pkgs []domain.Packag
 	return nil
 }
 
-func (m *mockExecutor) ExecuteClean(ctx context.Context, onEvent executor.EventCallback) error {
+func (m *mockExecutor) ExecuteClean(ctx context.Context, args []string, onEvent executor.EventCallback) error {
 	onEvent(domain.UpgradeEvent{Type: "complete", Message: "clean ok"})
 	return nil
 }
 
-func (m *mockExecutor) ExecuteTopgrade(ctx context.Context, onEvent executor.EventCallback) error {
+func (m *mockExecutor) ExecuteTopgrade(ctx context.Context, args []string, onEvent executor.EventCallback) error {
 	onEvent(domain.UpgradeEvent{Type: "complete", Message: "topgrade ok"})
+	return nil
+}
+
+func (m *mockExecutor) ExecuteDoctor(ctx context.Context, args []string, onEvent executor.EventCallback) error {
+	onEvent(domain.UpgradeEvent{Type: "complete", Message: "doctor ok"})
+	return nil
+}
+
+func (m *mockExecutor) ExecuteAudit(ctx context.Context, args []string, onEvent executor.EventCallback) error {
+	onEvent(domain.UpgradeEvent{Type: "complete", Message: "audit ok"})
 	return nil
 }
 

@@ -34,8 +34,15 @@ func printUsage() {
 	cmds := [][2]string{
 		{"check", "Scan packages and print security status table (exits 1 on urgent CVEs)"},
 		{"apply", "Execute CLI package upgrades in terminal (--all, --security-only, --major, --force, -y)"},
+		{"doctor", "Run diagnostic health checks across all package managers via MPM doctor"},
+		{"audit", "Run macOS security posture audit via Raccoon (SIP, Gatekeeper, FileVault, ports)"},
+		{"clean", "Reclaim disk space across package managers and system caches via MPM & Topgrade"},
+		{"sweep", "Run deep system-wide maintenance sweep via Topgrade (-n, --only, --disable)"},
+		{"snapshot", "Export cross-manager package inventory to a declarative lockfile (MPM dump)"},
+		{"restore", "Replay declarative package lockfile onto this machine (MPM restore)"},
+		{"sbom", "Generate CycloneDX / SPDX Software Bill of Materials (MPM sbom)"},
+		{"managers", "List all active package managers detected on the system (MPM managers)"},
 		{"history", "View persistent upgrade audit trail (~/.local/state/vanguard/history.jsonl)"},
-		{"sweep", "Run deep system-wide maintenance sweep via Topgrade (git, toolchains, firmware)"},
 		{"monitor", "Run background security monitor daemon with desktop alert notifications"},
 		{"dashboard", "Launch interactive Web Control Center (default)"},
 		{"version", "Print Vanguard version and platform information"},
@@ -70,10 +77,24 @@ func main() {
 			os.Exit(runCheck(ctx, os.Args[2:]))
 		case "apply":
 			os.Exit(runApply(ctx, os.Args[2:]))
+		case "doctor":
+			os.Exit(runDoctor(ctx, os.Args[2:]))
+		case "audit":
+			os.Exit(runAudit(ctx, os.Args[2:]))
+		case "clean", "cleanup":
+			os.Exit(runClean(ctx, os.Args[2:]))
+		case "sweep", "topgrade":
+			os.Exit(runSweep(ctx, os.Args[2:]))
+		case "snapshot", "dump", "backup", "lock":
+			os.Exit(runSnapshot(ctx, os.Args[2:]))
+		case "restore":
+			os.Exit(runRestore(ctx, os.Args[2:]))
+		case "sbom":
+			os.Exit(runSBOM(ctx, os.Args[2:]))
+		case "managers":
+			os.Exit(runManagers(ctx, os.Args[2:]))
 		case "history":
 			os.Exit(runHistory(os.Args[2:]))
-		case "sweep", "topgrade":
-			os.Exit(runSweep(ctx))
 		case "monitor":
 			os.Exit(runMonitor(ctx, os.Args[2:]))
 		case "version", "-v", "--version":

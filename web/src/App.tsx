@@ -10,12 +10,14 @@ import {
   triggerUpgrade,
   triggerClean,
   triggerTopgrade,
+  triggerDoctor,
+  triggerAudit,
   togglePin,
   subscribeToEvents,
 } from "./lib/api";
 import type { Package, ScanSummary, SystemStatus, UpgradeEvent, FilterType } from "./lib/types";
 
-export type OperationType = "upgrade" | "clean" | "topgrade" | null;
+export type OperationType = "upgrade" | "clean" | "topgrade" | "doctor" | "audit" | null;
 
 export function App() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
@@ -254,6 +256,40 @@ export function App() {
     }
   };
 
+  const executeDoctor = async () => {
+    if (isUpgrading || isScanning) return;
+    setIsUpgrading(true);
+    setActiveOperation("doctor");
+    setIsLogOpen(true);
+    setEvents([]);
+
+    try {
+      await triggerDoctor();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Doctor diagnostics request failed";
+      setError(msg);
+      setIsUpgrading(false);
+      setActiveOperation(null);
+    }
+  };
+
+  const executeAudit = async () => {
+    if (isUpgrading || isScanning) return;
+    setIsUpgrading(true);
+    setActiveOperation("audit");
+    setIsLogOpen(true);
+    setEvents([]);
+
+    try {
+      await triggerAudit();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Security posture audit request failed";
+      setError(msg);
+      setIsUpgrading(false);
+      setActiveOperation(null);
+    }
+  };
+
   const handleTogglePin = async (id: string) => {
     if (isUpgrading) return;
     try {
@@ -327,6 +363,8 @@ export function App() {
         onOpenReview={() => setActiveFilter("queued")}
         onClean={() => setConfirmAction("clean")}
         onTopgrade={() => setConfirmAction("topgrade")}
+        onDoctor={executeDoctor}
+        onAudit={executeAudit}
         onOpenHistory={() => setIsHistoryOpen(true)}
       />
 

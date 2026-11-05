@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { ShieldCheck, ShieldAlert, RefreshCw, Trash2, ArrowUpCircle, Zap, History, Loader2, ListFilter } from "lucide-react";
+import { ShieldCheck, ShieldAlert, RefreshCw, Trash2, ArrowUpCircle, Zap, History, Loader2, ListFilter, Stethoscope, Shield } from "lucide-react";
 import type { SystemStatus } from "../lib/types";
 import { BrandDelta } from "./brand-logo";
 
@@ -14,6 +14,8 @@ interface HeaderProps {
   onOpenReview?: () => void;
   onClean: () => void;
   onTopgrade: () => void;
+  onDoctor?: () => void;
+  onAudit?: () => void;
   onOpenHistory: () => void;
 }
 
@@ -28,6 +30,8 @@ export const Header: FC<HeaderProps> = ({
   onOpenReview,
   onClean,
   onTopgrade,
+  onDoctor,
+  onAudit,
   onOpenHistory,
 }) => {
   return (
@@ -91,15 +95,43 @@ export const Header: FC<HeaderProps> = ({
               className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-amber-300 hover:bg-zinc-800/80 px-2 sm:px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden lg:inline">Topgrade Sweep</span>
+              <span className="hidden lg:inline">Sweep</span>
             </button>
+
+            {onDoctor && (
+              <button
+                type="button"
+                onClick={onDoctor}
+                disabled={isUpgrading || isScanning}
+                aria-label="Run package manager health doctor"
+                title="Diagnose health across package managers via MPM doctor"
+                className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-emerald-300 hover:bg-zinc-800/80 px-2 sm:px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <Stethoscope className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden xl:inline">Doctor</span>
+              </button>
+            )}
+
+            {onAudit && (
+              <button
+                type="button"
+                onClick={onAudit}
+                disabled={isUpgrading || isScanning}
+                aria-label="Run macOS security posture audit"
+                title="Run macOS host security posture audit via Raccoon"
+                className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-cyan-300 hover:bg-zinc-800/80 px-2 sm:px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <Shield className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="hidden xl:inline">Audit</span>
+              </button>
+            )}
 
             <button
               type="button"
               onClick={onClean}
               disabled={isUpgrading || isScanning}
               aria-label="Clean package manager caches"
-              title="Clean package caches, old versions, and logs"
+              title="Clean package caches, old versions, and logs via MPM & Topgrade"
               className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/80 px-2 sm:px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5 text-zinc-400" />
