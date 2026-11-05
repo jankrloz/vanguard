@@ -208,6 +208,11 @@ func TestBuildNativeFallbackCommandsMatrix(t *testing.T) {
 		{"rustup", []string{"stable"}, []string{"rustup", "update"}},
 		{"mas", []string{"497799835"}, []string{"mas", "upgrade", "497799835"}},
 		{"composer", []string{"laravel/installer"}, []string{"composer", "global", "update", "laravel/installer"}},
+		{"skills", []string{"ruff"}, []string{"skills", "update", "ruff", "--global", "--yes"}},
+		{"yarn-berry", []string{"serve"}, []string{"yarn", "global", "upgrade", "serve"}},
+		{"claude-code-plugins", []string{"my-plugin"}, []string{"claude", "plugin", "update", "my-plugin"}},
+		{"pi", []string{"ext"}, []string{"pi", "update", "--extension", "ext"}},
+		{"mise", []string{"node"}, []string{"mise", "upgrade", "--bump", "-y", "node"}},
 	}
 
 	for _, tc := range cases {

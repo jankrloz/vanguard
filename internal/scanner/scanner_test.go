@@ -46,3 +46,26 @@ uv       pip            26.2.1             26.2.2
 		t.Errorf("expected pip to be safe patch, got %+v", pip)
 	}
 }
+
+func TestDeriveSourceURL(t *testing.T) {
+	cases := []struct {
+		mgr  string
+		name string
+		want string
+	}{
+		{"skills", "ruff", "https://skills.sh"},
+		{"brew", "fzf", "https://formulae.brew.sh/formula/fzf"},
+		{"cask", "codex", "https://formulae.brew.sh/cask/codex"},
+		{"npm", "vercel", "https://www.npmjs.com/package/vercel"},
+		{"pnpm", "neonctl", "https://www.npmjs.com/package/neonctl"},
+		{"pip", "requests", "https://pypi.org/project/requests"},
+		{"cargo", "ripgrep", "https://crates.io/crates/ripgrep"},
+	}
+
+	for _, tc := range cases {
+		got := DeriveSourceURL(tc.mgr, tc.name)
+		if got != tc.want {
+			t.Errorf("DeriveSourceURL(%q, %q) = %q; want %q", tc.mgr, tc.name, got, tc.want)
+		}
+	}
+}

@@ -34,7 +34,8 @@ func requiresPrivilegeEscalation(mgr string) bool {
 	// 1. User-scoped managers must NEVER run with sudo (prevents root-polluted ~/.npm, ~/.cargo, Homebrew aborts)
 	switch strings.ToLower(mgr) {
 	case "brew", "cask", "npm", "pnpm", "yarn", "bun", "cargo", "pip", "pipx", "uv", "uvx", "gcloud", "mise", "asdf",
-		"fisher", "antidote", "antigen", "zinit", "zplug", "rustup", "go", "composer", "vscode", "gh-ext", "mas":
+		"fisher", "antidote", "antigen", "zinit", "zplug", "rustup", "go", "composer", "vscode", "gh-ext", "mas",
+		"skills", "claude-code-plugins", "antigravity-cli-plugins", "pi", "yarn-berry":
 		return false
 	}
 
@@ -134,8 +135,42 @@ func buildNativeFallbackCommands(ctx context.Context, mgr string, names []string
 			targets = append(targets, n+"@latest")
 		}
 		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "pnpm", targets...))}
-	case "yarn":
+	case "yarn", "yarn-berry":
 		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "yarn", append([]string{"global", "upgrade"}, names...)...))}
+	case "skills":
+		if len(names) == 0 {
+			return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "skills", "update", "--global", "--yes"))}
+		}
+		var cmds []*exec.Cmd
+		for _, n := range names {
+			cmds = append(cmds, withCleanEnv(exec.CommandContext(ctx, "skills", "update", n, "--global", "--yes")))
+		}
+		return cmds
+	case "claude-code-plugins":
+		var cmds []*exec.Cmd
+		for _, n := range names {
+			cmds = append(cmds, withCleanEnv(exec.CommandContext(ctx, "claude", "plugin", "update", n)))
+		}
+		return cmds
+	case "pi":
+		if len(names) == 0 {
+			return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "pi", "update", "--extensions"))}
+		}
+		var cmds []*exec.Cmd
+		for _, n := range names {
+			cmds = append(cmds, withCleanEnv(exec.CommandContext(ctx, "pi", "update", "--extension", n)))
+		}
+		return cmds
+	case "mise":
+		if len(names) == 0 {
+			return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "mise", "upgrade", "--bump", "-y"))}
+		}
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "mise", append([]string{"upgrade", "--bump", "-y"}, names...)...))}
+	case "fisher":
+		if len(names) == 0 {
+			return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "fish", "-c", "fisher update"))}
+		}
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "fish", "-c", "fisher update "+strings.Join(names, " ")))}
 	case "bun":
 		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "bun", append([]string{"update", "-g"}, names...)...))}
 	case "pip":

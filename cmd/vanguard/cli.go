@@ -36,14 +36,14 @@ func computeColumnWidths(pkgs []domain.Package) (mgrWidth, nameWidth, verWidth i
 			verWidth = vLen
 		}
 	}
-	if mgrWidth > 10 {
-		mgrWidth = 10
+	if mgrWidth > 12 {
+		mgrWidth = 12
 	}
-	if nameWidth > 28 {
-		nameWidth = 28
+	if nameWidth > 30 {
+		nameWidth = 30
 	}
-	if verWidth > 26 {
-		verWidth = 26
+	if verWidth > 30 {
+		verWidth = 30
 	}
 	return mgrWidth, nameWidth, verWidth
 }
@@ -392,11 +392,11 @@ func runHistory(args []string) int {
 			verWidth = vLen
 		}
 	}
-	if nameWidth > 28 {
-		nameWidth = 28
+	if nameWidth > 30 {
+		nameWidth = 30
 	}
-	if verWidth > 26 {
-		verWidth = 26
+	if verWidth > 30 {
+		verWidth = 30
 	}
 
 	for _, e := range entries {

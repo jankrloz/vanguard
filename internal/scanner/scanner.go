@@ -67,6 +67,8 @@ func DeriveSourceURL(manager, name string) string {
 		return "https://pkg.go.dev/" + name
 	case "cpan":
 		return "https://metacpan.org/pod/" + name
+	case "skills":
+		return "https://skills.sh"
 	case "composer", "php":
 		return "https://packagist.org/packages/" + name
 	case "nuget", "dotnet":
@@ -429,6 +431,8 @@ func enrichDescriptions(ctx context.Context, packages []domain.Package) {
 			var desc string
 
 			switch mgr {
+			case "skills":
+				desc = fetchSkillDescription(p.Name)
 			case "gcloud":
 				if d, ok := gcloudComponentDescriptions[p.Name]; ok {
 					desc = d
@@ -581,4 +585,34 @@ func fetchBrewDescriptions(ctx context.Context, names []string) map[string]strin
 	}
 
 	return descMap
+}
+
+// fetchSkillDescription reads the human-readable description from the skill's SKILL.md frontmatter.
+func fetchSkillDescription(name string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
+	for _, base := range []string{filepath.Join(home, ".agents", "skills"), filepath.Join(home, ".claude", "skills"), filepath.Join(home, ".gemini", "skills")} {
+		skillFile := filepath.Join(base, name, "SKILL.md")
+		data, err := os.ReadFile(skillFile)
+		if err != nil {
+			continue
+		}
+		content := string(data)
+		if strings.HasPrefix(content, "---") {
+			parts := strings.SplitN(content[3:], "---", 2)
+			if len(parts) >= 1 {
+				for _, line := range strings.Split(parts[0], "\n") {
+					line = strings.TrimSpace(line)
+					if strings.HasPrefix(line, "description:") {
+						desc := strings.TrimSpace(strings.TrimPrefix(line, "description:"))
+						desc = strings.Trim(desc, `"'`)
+						return cleanDescription(desc)
+					}
+				}
+			}
+		}
+	}
+	return ""
 }
