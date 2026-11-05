@@ -331,7 +331,15 @@ func runApply(ctx context.Context, args []string) int {
 				ui.StyleWhiteBold.Render(strings.TrimPrefix(ev.Message, fmt.Sprintf("Upgrading [%s] packages: ", ev.Package))),
 			)
 		case "log":
-			fmt.Printf("      %s %s\n", ui.StyleSubtle.Render("│"), ui.StyleZinc.Render(ev.Message))
+			if strings.HasPrefix(ev.Message, "$ ") {
+				fmt.Printf("      %s %s %s\n",
+					ui.StyleSubtle.Render("│"),
+					ui.StyleCyanBold.Render("❯"),
+					ui.StyleCyanBold.Render(strings.TrimPrefix(ev.Message, "$ ")),
+				)
+			} else {
+				fmt.Printf("      %s %s\n", ui.StyleSubtle.Render("│"), ui.StyleZinc.Render(ev.Message))
+			}
 		case "package_done":
 			batch := pkgCountByMgr[ev.Package]
 			if batch <= 0 {
@@ -494,7 +502,11 @@ func runSweep(ctx context.Context, args []string) int {
 		case "start":
 			fmt.Printf("  %s %s\n", ui.StyleCyanBold.Render("▶"), ev.Message)
 		case "log":
-			fmt.Printf("    %s\n", ui.StyleZinc.Render(ev.Message))
+			if strings.HasPrefix(ev.Message, "$ ") {
+				fmt.Printf("    %s %s\n", ui.StyleCyanBold.Render("❯"), ui.StyleCyanBold.Render(strings.TrimPrefix(ev.Message, "$ ")))
+			} else {
+				fmt.Printf("    %s\n", ui.StyleZinc.Render(ev.Message))
+			}
 		case "package_done":
 			if ev.Status == "ok" {
 				fmt.Printf("  %s\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message))
@@ -530,7 +542,9 @@ func runDoctor(ctx context.Context, args []string) int {
 			fmt.Printf("  %s %s\n\n", ui.StyleCyanBold.Render("▶"), ui.StyleZinc.Render(ev.Message))
 		case "log":
 			msg := ev.Message
-			if strings.HasPrefix(msg, "✓") {
+			if strings.HasPrefix(msg, "$ ") {
+				fmt.Printf("  %s %s\n\n", ui.StyleCyanBold.Render("❯"), ui.StyleCyanBold.Render(strings.TrimPrefix(msg, "$ ")))
+			} else if strings.HasPrefix(msg, "✓") {
 				fmt.Printf("  %s\n", ui.StyleEmeraldBold.Render(msg))
 			} else if strings.HasPrefix(msg, "✘") {
 				fmt.Printf("  %s\n", ui.StyleRoseBold.Render(msg))
@@ -593,7 +607,11 @@ func runClean(ctx context.Context, args []string) int {
 		case "start":
 			fmt.Printf("  %s %s\n", ui.StyleCyanBold.Render("▶"), ui.StyleZinc.Render(ev.Message))
 		case "log":
-			fmt.Printf("    %s\n", ui.StyleZinc.Render(ev.Message))
+			if strings.HasPrefix(ev.Message, "$ ") {
+				fmt.Printf("    %s %s\n", ui.StyleCyanBold.Render("❯"), ui.StyleCyanBold.Render(strings.TrimPrefix(ev.Message, "$ ")))
+			} else {
+				fmt.Printf("    %s\n", ui.StyleZinc.Render(ev.Message))
+			}
 		case "complete":
 			fmt.Printf("\n  %s\n\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message))
 		case "error":
@@ -644,7 +662,11 @@ func runRestore(ctx context.Context, args []string) int {
 		case "start":
 			fmt.Printf("  %s %s\n", ui.StyleCyanBold.Render("▶"), ui.StyleZinc.Render(ev.Message))
 		case "log":
-			fmt.Printf("    %s\n", ui.StyleZinc.Render(ev.Message))
+			if strings.HasPrefix(ev.Message, "$ ") {
+				fmt.Printf("    %s %s\n", ui.StyleCyanBold.Render("❯"), ui.StyleCyanBold.Render(strings.TrimPrefix(ev.Message, "$ ")))
+			} else {
+				fmt.Printf("    %s\n", ui.StyleZinc.Render(ev.Message))
+			}
 		case "complete":
 			fmt.Printf("\n  %s\n\n", ui.StyleEmeraldBold.Render("✓ "+ev.Message))
 		case "error":

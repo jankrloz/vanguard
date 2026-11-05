@@ -231,8 +231,32 @@ func buildNativeFallbackCommands(ctx context.Context, mgr string, names []string
 	}
 }
 
+// formatCommand formats an exec.Cmd into a clean copy-pasteable terminal command string.
+func formatCommand(cmd *exec.Cmd) string {
+	if cmd == nil {
+		return ""
+	}
+	var parts []string
+	bin := filepath.Base(cmd.Path)
+	if len(cmd.Args) > 0 {
+		bin = filepath.Base(cmd.Args[0])
+	}
+	parts = append(parts, bin)
+	if len(cmd.Args) > 1 {
+		for _, arg := range cmd.Args[1:] {
+			if strings.ContainsAny(arg, " \t\n\"") {
+				parts = append(parts, fmt.Sprintf("%q", arg))
+			} else {
+				parts = append(parts, arg)
+			}
+		}
+	}
+	return "$ " + strings.Join(parts, " ")
+}
+
 // executeWithSilentFallback runs MPM first (buffering its output), and if MPM fails or reports
 // stream-level errors, silently falls back to the native package manager command(s).
+// In both cases, the real downstream command line executed is surfaced in the log output.
 func (e *Executor) executeWithSilentFallback(ctx context.Context, mgr string, names []string, onEvent EventCallback) error {
 	mpmCmd := buildMPMCommand(ctx, mgr, names)
 	var mpmLogs []string
@@ -243,6 +267,10 @@ func (e *Executor) executeWithSilentFallback(ctx context.Context, mgr string, na
 	})
 
 	if mpmErr == nil {
+		onEvent(domain.UpgradeEvent{
+			Type:    "log",
+			Message: formatCommand(mpmCmd),
+		})
 		for _, line := range mpmLogs {
 			onEvent(domain.UpgradeEvent{
 				Type:    "log",
@@ -255,7 +283,10 @@ func (e *Executor) executeWithSilentFallback(ctx context.Context, mgr string, na
 	// MPM failed: attempt silent native fallback
 	fallbackCmds := buildNativeFallbackCommands(ctx, mgr, names)
 	if len(fallbackCmds) == 0 {
-		// No native fallback known for this manager; flush MPM logs so user has diagnostics
+		onEvent(domain.UpgradeEvent{
+			Type:    "log",
+			Message: formatCommand(mpmCmd),
+		})
 		for _, line := range mpmLogs {
 			onEvent(domain.UpgradeEvent{
 				Type:    "log",
@@ -268,6 +299,10 @@ func (e *Executor) executeWithSilentFallback(ctx context.Context, mgr string, na
 	var fallbackLogs []string
 	var fallbackErr error
 	for _, fbCmd := range fallbackCmds {
+		onEvent(domain.UpgradeEvent{
+			Type:    "log",
+			Message: formatCommand(fbCmd),
+		})
 		err := e.runStreamingCommand(fbCmd, func(ev domain.UpgradeEvent) {
 			if ev.Type == "log" {
 				fallbackLogs = append(fallbackLogs, ev.Message)
@@ -506,6 +541,10 @@ func (e *Executor) ExecuteTopgrade(ctx context.Context, args []string, onEvent E
 		cmdArgs = args
 	}
 	cmd := exec.CommandContext(ctx, topgradePath, cmdArgs...)
+	onEvent(domain.UpgradeEvent{
+		Type:    "log",
+		Message: formatCommand(cmd),
+	})
 	err = e.runStreamingCommand(cmd, onEvent)
 
 	status := "ok"
@@ -566,6 +605,10 @@ func (e *Executor) ExecuteDoctor(ctx context.Context, args []string, onEvent Eve
 		cmdArgs = append(cmdArgs, args...)
 	}
 	cmd := exec.CommandContext(ctx, mpmPath, cmdArgs...)
+	onEvent(domain.UpgradeEvent{
+		Type:    "log",
+		Message: formatCommand(cmd),
+	})
 	err = e.runStreamingCommand(cmd, onEvent)
 
 	onEvent(domain.UpgradeEvent{
@@ -599,6 +642,10 @@ func (e *Executor) ExecuteAudit(ctx context.Context, args []string, onEvent Even
 		cmdArgs = append(cmdArgs, args...)
 	}
 	cmd := exec.CommandContext(ctx, rccPath, cmdArgs...)
+	onEvent(domain.UpgradeEvent{
+		Type:    "log",
+		Message: formatCommand(cmd),
+	})
 	err = e.runStreamingCommand(cmd, onEvent)
 
 	onEvent(domain.UpgradeEvent{
@@ -619,24 +666,24 @@ func (e *Executor) ExecuteClean(ctx context.Context, args []string, onEvent Even
 	})
 
 	if mpmPath, err := exec.LookPath("mpm"); err == nil {
-		onEvent(domain.UpgradeEvent{
-			Type:    "log",
-			Message: "Running Meta Package Manager cache cleanup (`mpm cleanup`)...",
-		})
 		cleanArgs := []string{"--accessible", "--no-color", "cleanup"}
 		if len(args) > 0 {
 			cleanArgs = append(cleanArgs, args...)
 		}
 		cmd := exec.CommandContext(ctx, mpmPath, cleanArgs...)
+		onEvent(domain.UpgradeEvent{
+			Type:    "log",
+			Message: formatCommand(cmd),
+		})
 		_ = e.runStreamingCommand(cmd, onEvent)
 	}
 
 	if tgPath, err := exec.LookPath("topgrade"); err == nil {
+		cmd := exec.CommandContext(ctx, tgPath, "--cleanup", "-y")
 		onEvent(domain.UpgradeEvent{
 			Type:    "log",
-			Message: "Running Topgrade system cleanup (`topgrade --cleanup -y`)...",
+			Message: formatCommand(cmd),
 		})
-		cmd := exec.CommandContext(ctx, tgPath, "--cleanup", "-y")
 		_ = e.runStreamingCommand(cmd, onEvent)
 	}
 
@@ -658,6 +705,10 @@ func (e *Executor) ExecuteSnapshot(ctx context.Context, args []string, onEvent E
 	}
 	cmdArgs := append([]string{"dump"}, args...)
 	cmd := exec.CommandContext(ctx, mpmPath, cmdArgs...)
+	onEvent(domain.UpgradeEvent{
+		Type:    "log",
+		Message: formatCommand(cmd),
+	})
 	return e.runStreamingCommand(cmd, onEvent)
 }
 
@@ -672,6 +723,10 @@ func (e *Executor) ExecuteRestore(ctx context.Context, args []string, onEvent Ev
 	}
 	cmdArgs := append([]string{"restore"}, args...)
 	cmd := exec.CommandContext(ctx, mpmPath, cmdArgs...)
+	onEvent(domain.UpgradeEvent{
+		Type:    "log",
+		Message: formatCommand(cmd),
+	})
 	return e.runStreamingCommand(cmd, onEvent)
 }
 
@@ -686,6 +741,10 @@ func (e *Executor) ExecuteSBOM(ctx context.Context, args []string, onEvent Event
 	}
 	cmdArgs := append([]string{"sbom"}, args...)
 	cmd := exec.CommandContext(ctx, mpmPath, cmdArgs...)
+	onEvent(domain.UpgradeEvent{
+		Type:    "log",
+		Message: formatCommand(cmd),
+	})
 	return e.runStreamingCommand(cmd, onEvent)
 }
 
@@ -699,6 +758,10 @@ func (e *Executor) ExecuteManagers(ctx context.Context, onEvent EventCallback) e
 		return fmt.Errorf("mpm not installed: %w", err)
 	}
 	cmd := exec.CommandContext(ctx, mpmPath, "--accessible", "--no-color", "managers")
+	onEvent(domain.UpgradeEvent{
+		Type:    "log",
+		Message: formatCommand(cmd),
+	})
 	return e.runStreamingCommand(cmd, onEvent)
 }
 

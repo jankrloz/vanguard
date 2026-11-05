@@ -148,6 +148,19 @@ export const LogDrawer: FC<LogDrawerProps> = ({
             const isPkgDone = ev.type === "package_done";
             const isCompleteType = ev.type === "complete";
             const isErrorType = ev.type === "error" || ev.status === "failed";
+            const isCommand = ev.message.startsWith("$ ");
+
+            if (isCommand) {
+              return (
+                <div
+                  key={index}
+                  className="text-cyan-400 font-semibold font-mono py-1 mt-1.5 flex items-start gap-1.5 bg-zinc-900/60 border-l-2 border-cyan-400 px-2 rounded-r"
+                >
+                  <span className="text-cyan-400 font-bold select-none">❯</span>
+                  <span className="text-zinc-100">{ev.message.slice(2)}</span>
+                </div>
+              );
+            }
 
             return (
               <div
