@@ -50,11 +50,11 @@ jobs:
       - name: Install Dependencies
         run: task setup
 
-      - name: Run Test Suite
-        run: task test
-
       - name: Build Web Assets
         run: task build:web
+
+      - name: Run Test Suite
+        run: task test
 
       - name: Run Semantic Release
         env:

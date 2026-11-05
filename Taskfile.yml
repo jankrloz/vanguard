@@ -49,6 +49,7 @@ tasks:
 
   test:
     desc: Run test suite
+    deps: [build:web]
     cmds:
       - go test -v ./...
 
