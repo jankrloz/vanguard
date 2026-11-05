@@ -3,6 +3,8 @@ version: '3'
 vars:
   BIN: bin/vanguard
   INSTALL_DIR: '{{.HOME}}/.local/bin'
+  VERSION: '{{.VERSION | default "0.4.0"}}'
+  DIST: 'dist'
 
 tasks:
   default:
@@ -11,14 +13,15 @@ tasks:
       - task: build
 
   setup:
-    desc: Install frontend dependencies
+    desc: Install dependencies (frontend and semantic-release tooling)
     cmds:
+      - pnpm install
       - cmd: cd web && pnpm install
 
   build:web:
     desc: Build Vite+ React frontend assets
     cmds:
-      - cmd: cd web && vp build
+      - cmd: cd web && (command -v vp >/dev/null 2>&1 && vp build || pnpm run build)
     sources:
       - 'web/src/**/*'
       - 'web/index.html'
@@ -31,7 +34,7 @@ tasks:
     desc: Compile Go backend binary with embedded assets
     deps: [build:web]
     cmds:
-      - cmd: go build -ldflags="-s -w" -o {{.BIN}} ./cmd/vanguard
+      - cmd: go build -ldflags="-s -w -X main.Version={{.VERSION}}" -o {{.BIN}} ./cmd/vanguard
     sources:
       - '**/*.go'
       - 'web/dist/**/*'
@@ -71,6 +74,56 @@ tasks:
           fi
         fi
       - 'echo "Installed vanguard to {{.INSTALL_DIR}}/vanguard (aliases: vg, up)"'
+
+  release:build:
+    desc: Cross-compile Go binaries for all release targets with embedded assets
+    deps: [build:web]
+    cmds:
+      - mkdir -p {{.DIST}}
+      - GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version={{.VERSION}}" -o {{.DIST}}/vanguard_darwin_arm64 ./cmd/vanguard
+      - GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version={{.VERSION}}" -o {{.DIST}}/vanguard_darwin_amd64 ./cmd/vanguard
+      - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version={{.VERSION}}" -o {{.DIST}}/vanguard_linux_amd64 ./cmd/vanguard
+      - GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version={{.VERSION}}" -o {{.DIST}}/vanguard_linux_arm64 ./cmd/vanguard
+
+  release:package:
+    desc: Package release archives (.tar.gz) and generate checksums.txt
+    deps: [release:build]
+    cmds:
+      - |
+        cd {{.DIST}}
+        for target in darwin_arm64 darwin_amd64 linux_amd64 linux_arm64; do
+          rm -rf tmp_${target}
+          mkdir -p tmp_${target}
+          cp vanguard_${target} tmp_${target}/vanguard
+          chmod +x tmp_${target}/vanguard
+          cp ../README.md tmp_${target}/
+          [ -f ../LICENSE ] && cp ../LICENSE tmp_${target}/
+          tar -czf vanguard_{{.VERSION}}_${target}.tar.gz -C tmp_${target} .
+          rm -rf tmp_${target} vanguard_${target}
+        done
+        if command -v shasum >/dev/null 2>&1; then
+          shasum -a 256 vanguard_{{.VERSION}}_*.tar.gz > checksums.txt
+        else
+          sha256sum vanguard_{{.VERSION}}_*.tar.gz > checksums.txt
+        fi
+        echo "Release archives and checksums created in {{.DIST}}:"
+        ls -la vanguard_{{.VERSION}}_*.tar.gz checksums.txt
+
+  release:formula:
+    desc: Generate Homebrew formula for Vanguard and optionally sync to tap
+    deps: [release:package]
+    cmds:
+      - ./scripts/update-formula.sh {{.VERSION}}
+
+  release:dry:
+    desc: Run semantic-release in dry-run mode to inspect next version and changelog
+    cmds:
+      - pnpm exec semantic-release --dry-run
+
+  release:
+    desc: Run automated semantic release locally (requires GITHUB_TOKEN)
+    cmds:
+      - pnpm exec semantic-release
 
   run:
     desc: Run Vanguard dashboard with Touch ID authentication

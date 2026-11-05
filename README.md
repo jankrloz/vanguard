@@ -138,6 +138,35 @@ vg history --limit 30
 vg monitor --interval 1h
 ```
 
+### Downstream Orchestration & System Diagnostics
+
+Vanguard orchestrates authoritative downstream sub-binaries (`mpm`, `topgrade`, `rcc`) for diagnostics, security posture, disk cleanup, and inventory:
+
+```bash
+# Diagnostic health checks across all package managers via MPM doctor
+vg doctor
+
+# Run macOS security posture audit via Raccoon (SIP, Gatekeeper, FileVault, firewall)
+vg audit
+vg audit --deep
+vg audit --fix
+
+# Reclaim disk space across package managers and system caches via MPM & Topgrade
+vg clean
+vg clean --force
+
+# Export & restore multi-ecosystem package manifests via MPM dump/restore
+vg snapshot packages.toml
+vg restore packages.toml
+
+# Generate CycloneDX or SPDX Software Bill of Materials via MPM
+vg sbom --cyclonedx
+vg sbom --spdx
+
+# Inspect all detected and missing package managers across the host
+vg managers
+```
+
 ### Dashboard Flags
 
 | Flag | Default | Description |
