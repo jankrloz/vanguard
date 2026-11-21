@@ -35,7 +35,7 @@ func requiresPrivilegeEscalation(mgr string) bool {
 	switch strings.ToLower(mgr) {
 	case "brew", "cask", "npm", "pnpm", "yarn", "bun", "cargo", "pip", "pipx", "uv", "uvx", "gcloud", "mise", "asdf",
 		"fisher", "antidote", "antigen", "zinit", "zplug", "rustup", "go", "composer", "vscode", "gh-ext", "mas",
-		"skills", "claude-code-plugins", "antigravity-cli-plugins", "pi", "yarn-berry":
+		"skills", "claude-code-plugins", "antigravity-cli-plugins", "pi", "yarn-berry", "topgrade", "mole", "apm":
 		return false
 	}
 
@@ -226,9 +226,63 @@ func buildNativeFallbackCommands(ctx context.Context, mgr string, names []string
 			cmds = append(cmds, withCleanEnv(exec.CommandContext(ctx, "gh", "extension", "upgrade", n)))
 		}
 		return cmds
+	case "apm":
+		return []*exec.Cmd{withCleanEnv(exec.CommandContext(ctx, "apm", "deps", "update"))}
+	case "ollama":
+		var cmds []*exec.Cmd
+		for _, n := range names {
+			cmds = append(cmds, withCleanEnv(exec.CommandContext(ctx, "ollama", "pull", n)))
+		}
+		return cmds
 	default:
 		return nil
 	}
+}
+
+// mapManagerToTopgradeStep maps a manager ID to a Topgrade --only step name when Topgrade
+// can act as Tier 2 fallback after MPM.
+func mapManagerToTopgradeStep(mgr string) string {
+	switch strings.ToLower(mgr) {
+	case "skills":
+		return "skills"
+	case "claude-code-plugins":
+		return "claude_code_plugins"
+	case "gh-ext":
+		return "github_cli_extensions"
+	case "fisher":
+		return "fisher"
+	case "pi":
+		return "pi"
+	case "vscode":
+		return "vscode"
+	case "cargo":
+		return "cargo"
+	case "ollama":
+		return "ollama"
+	default:
+		return ""
+	}
+}
+
+// buildTopgradeStepCommands builds Tier 2 `topgrade --only <step> --yes` commands.
+func buildTopgradeStepCommands(ctx context.Context, mgr string, names []string) []*exec.Cmd {
+	if _, err := exec.LookPath("topgrade"); err != nil {
+		return nil
+	}
+	lowerMgr := strings.ToLower(mgr)
+	if lowerMgr == "topgrade" {
+		if len(names) == 0 {
+			return []*exec.Cmd{exec.CommandContext(ctx, "topgrade", "--yes")}
+		}
+		args := []string{"--only"}
+		args = append(args, names...)
+		args = append(args, "--yes")
+		return []*exec.Cmd{exec.CommandContext(ctx, "topgrade", args...)}
+	}
+	if step := mapManagerToTopgradeStep(lowerMgr); step != "" {
+		return []*exec.Cmd{exec.CommandContext(ctx, "topgrade", "--only", step, "--yes")}
+	}
+	return nil
 }
 
 // formatCommand formats an exec.Cmd into a clean copy-pasteable terminal command string.
@@ -254,86 +308,100 @@ func formatCommand(cmd *exec.Cmd) string {
 	return "$ " + strings.Join(parts, " ")
 }
 
-// executeWithSilentFallback runs MPM first (buffering its output), and if MPM fails or reports
-// stream-level errors, silently falls back to the native package manager command(s).
-// In both cases, the real downstream command line executed is surfaced in the log output.
+// executeWithSilentFallback runs upgrades in strict 4-tier order:
+// 1. MPM (`mpm --<mgr> upgrade`) for MPM-managed ecosystems
+// 2. Topgrade (`topgrade --only <step> --yes`) for Topgrade-exclusive or MPM-failed steps
+// 3. Mole (`mo update`) for Mole self-update
+// 4. Custom/Native CLI fallback (`buildNativeFallbackCommands`)
 func (e *Executor) executeWithSilentFallback(ctx context.Context, mgr string, names []string, onEvent EventCallback) error {
-	mpmCmd := buildMPMCommand(ctx, mgr, names)
-	var mpmLogs []string
-	mpmErr := e.runStreamingCommand(mpmCmd, func(ev domain.UpgradeEvent) {
-		if ev.Type == "log" {
-			mpmLogs = append(mpmLogs, ev.Message)
-		}
-	})
+	lowerMgr := strings.ToLower(mgr)
 
-	if mpmErr == nil {
-		onEvent(domain.UpgradeEvent{
-			Type:    "log",
-			Message: formatCommand(mpmCmd),
-		})
-		for _, line := range mpmLogs {
-			onEvent(domain.UpgradeEvent{
-				Type:    "log",
-				Message: line,
-			})
-		}
-		return nil
+	// Tier 3 direct route: Mole self-update
+	if lowerMgr == "mole" {
+		moCmd := exec.CommandContext(ctx, "mo", "update")
+		return e.runAndEmit(moCmd, onEvent)
 	}
 
-	// MPM failed: attempt silent native fallback
+	// Tier 2 direct route: Topgrade-exclusive step items (`topgrade:<step>`)
+	if lowerMgr == "topgrade" {
+		tgCmds := buildTopgradeStepCommands(ctx, mgr, names)
+		if len(tgCmds) == 0 {
+			return fmt.Errorf("topgrade executable not found in PATH")
+		}
+		return e.runCommandsWithBuffering(tgCmds, len(names) <= 1, onEvent)
+	}
+
+	// Tier 1: MPM (skip for `apm` since MPM maps `apm` to Atom rather than Agent Package Manager)
+	var mpmCmd *exec.Cmd
+	var mpmLogs []string
+	var mpmErr error
+	if lowerMgr != "apm" {
+		mpmCmd = buildMPMCommand(ctx, mgr, names)
+		mpmErr = e.runStreamingCommand(mpmCmd, func(ev domain.UpgradeEvent) {
+			if ev.Type == "log" {
+				mpmLogs = append(mpmLogs, ev.Message)
+			}
+		})
+		if mpmErr == nil {
+			onEvent(domain.UpgradeEvent{Type: "log", Message: formatCommand(mpmCmd)})
+			for _, line := range mpmLogs {
+				onEvent(domain.UpgradeEvent{Type: "log", Message: line})
+			}
+			return nil
+		}
+	}
+
+	// Tier 2 fallback: Topgrade --only <step> when MPM failed and Topgrade supports the step
+	if tgCmds := buildTopgradeStepCommands(ctx, mgr, names); len(tgCmds) > 0 {
+		if err := e.runCommandsWithBuffering(tgCmds, false, onEvent); err == nil {
+			return nil
+		}
+	}
+
+	// Tier 4 fallback: Native / Custom CLI commands
 	fallbackCmds := buildNativeFallbackCommands(ctx, mgr, names)
 	if len(fallbackCmds) == 0 {
-		onEvent(domain.UpgradeEvent{
-			Type:    "log",
-			Message: formatCommand(mpmCmd),
-		})
-		for _, line := range mpmLogs {
-			onEvent(domain.UpgradeEvent{
-				Type:    "log",
-				Message: line,
-			})
+		if mpmCmd != nil {
+			onEvent(domain.UpgradeEvent{Type: "log", Message: formatCommand(mpmCmd)})
+			for _, line := range mpmLogs {
+				onEvent(domain.UpgradeEvent{Type: "log", Message: line})
+			}
 		}
-		return mpmErr
+		if mpmErr != nil {
+			return mpmErr
+		}
+		return fmt.Errorf("no upgrade command available for manager %s", mgr)
 	}
 
-	var fallbackLogs []string
-	var fallbackErr error
-	for _, fbCmd := range fallbackCmds {
-		onEvent(domain.UpgradeEvent{
-			Type:    "log",
-			Message: formatCommand(fbCmd),
-		})
-		err := e.runStreamingCommand(fbCmd, func(ev domain.UpgradeEvent) {
+	return e.runCommandsWithBuffering(fallbackCmds, len(names) <= 1, onEvent)
+}
+
+func (e *Executor) runAndEmit(cmd *exec.Cmd, onEvent EventCallback) error {
+	onEvent(domain.UpgradeEvent{Type: "log", Message: formatCommand(cmd)})
+	return e.runStreamingCommand(cmd, onEvent)
+}
+
+func (e *Executor) runCommandsWithBuffering(cmds []*exec.Cmd, emitOnError bool, onEvent EventCallback) error {
+	var logs []string
+	var runErr error
+	for _, c := range cmds {
+		onEvent(domain.UpgradeEvent{Type: "log", Message: formatCommand(c)})
+		err := e.runStreamingCommand(c, func(ev domain.UpgradeEvent) {
 			if ev.Type == "log" {
-				fallbackLogs = append(fallbackLogs, ev.Message)
+				logs = append(logs, ev.Message)
 			}
 		})
 		if err != nil {
-			fallbackErr = err
+			runErr = err
 			break
 		}
 	}
-
-	if fallbackErr == nil {
-		for _, line := range fallbackLogs {
-			onEvent(domain.UpgradeEvent{
-				Type:    "log",
-				Message: line,
-			})
-		}
-		return nil
-	}
-
-	// Only emit fallback logs when single-package or no further per-package isolation will run
-	if len(names) <= 1 {
-		for _, line := range fallbackLogs {
-			onEvent(domain.UpgradeEvent{
-				Type:    "log",
-				Message: line,
-			})
+	if runErr == nil || emitOnError {
+		for _, line := range logs {
+			onEvent(domain.UpgradeEvent{Type: "log", Message: line})
 		}
 	}
-	return fallbackErr
+	return runErr
 }
 
 // ExecuteUpgrades groups packages by manager in deterministic order, attempts MPM first,
@@ -655,14 +723,14 @@ func (e *Executor) ExecuteAudit(ctx context.Context, args []string, onEvent Even
 	return err
 }
 
-// ExecuteClean runs system cleanup via `mpm cleanup` and `topgrade --cleanup -y`.
+// ExecuteClean runs system cleanup via `mpm cleanup`, `topgrade --cleanup -y`, and `mo clean` / `mo optimize`.
 func (e *Executor) ExecuteClean(ctx context.Context, args []string, onEvent EventCallback) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	onEvent(domain.UpgradeEvent{
 		Type:    "start",
-		Message: "Starting unified system cleanup...",
+		Message: "Starting unified system cleanup (MPM → Topgrade → Mole)...",
 	})
 
 	if mpmPath, err := exec.LookPath("mpm"); err == nil {
@@ -685,6 +753,17 @@ func (e *Executor) ExecuteClean(ctx context.Context, args []string, onEvent Even
 			Message: formatCommand(cmd),
 		})
 		_ = e.runStreamingCommand(cmd, onEvent)
+	}
+
+	if moPath, err := exec.LookPath("mo"); err == nil {
+		for _, sub := range []string{"clean", "optimize"} {
+			cmd := exec.CommandContext(ctx, moPath, sub)
+			onEvent(domain.UpgradeEvent{
+				Type:    "log",
+				Message: formatCommand(cmd),
+			})
+			_ = e.runStreamingCommand(cmd, onEvent)
+		}
 	}
 
 	onEvent(domain.UpgradeEvent{

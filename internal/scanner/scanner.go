@@ -67,8 +67,36 @@ func DeriveSourceURL(manager, name string) string {
 		return "https://pkg.go.dev/" + name
 	case "cpan":
 		return "https://metacpan.org/pod/" + name
-	case "skills":
+	case "skills", "github_cli_skills":
 		return "https://skills.sh"
+	case "mole":
+		return "https://mole.fit"
+	case "topgrade":
+		return "https://github.com/topgrade-rs/topgrade"
+	case "apm":
+		return "https://github.com/microsoft/apm"
+	case "claude_code", "claude_code_plugins", "claude-code-plugins":
+		return "https://claude.ai/code"
+	case "antigravity_cli", "antigravity", "antigravity_ide", "antigravity-cli-plugins":
+		return "https://antigravity.google"
+	case "cursor", "cursor_agent":
+		return "https://cursor.com"
+	case "codex":
+		return "https://github.com/openai/codex"
+	case "hermes_agent":
+		return "https://hermes-agent.nousresearch.com"
+	case "opencode":
+		return "https://opencode.ai"
+	case "pi":
+		return "https://github.com/badlogic/pi-mono"
+	case "vite_plus":
+		return "https://viteplus.dev"
+	case "tailscale":
+		return "https://tailscale.com"
+	case "vscode":
+		return "https://marketplace.visualstudio.com/items?itemName=" + name
+	case "gh-ext", "github_cli_extensions":
+		return "https://cli.github.com"
 	case "composer", "php":
 		return "https://packagist.org/packages/" + name
 	case "nuget", "dotnet":
@@ -88,16 +116,45 @@ func New() *Scanner {
 	return &Scanner{}
 }
 
-// Scan queries mpm to find all outdated packages across all package managers,
-// enforces configuration pins/ignores, and enriches results with OSV.dev CVE intelligence.
+// Scan syncs upstream package indexes and discovers outdated packages across all 4 tiers:
+// 1. MPM (`mpm sync` + `mpm outdated`)
+// 2. Topgrade (`topgrade --dry-run` for MPM-declined/unsupported steps)
+// 3. Mole (`mo` standalone self-update)
+// 4. Custom probes (`skills check`, `apm outdated`)
+// Then enforces configuration pins/ignores and enriches results with OSV.dev CVE intelligence.
 func (s *Scanner) Scan(ctx context.Context) (*domain.ScanResult, error) {
 	cfg, _ := config.Load()
 
-	// 1. Discover outdated packages purely via mpm
+	// 0. Best-effort index sync so outdated checks are fresh
+	syncPackageManagers(ctx, cfg.Packages.IgnoredManagers)
+
+	// 1. Tier 1: Discover outdated packages via mpm
 	packages, err := s.scanMPM(ctx, cfg.Packages.IgnoredManagers)
 	if err != nil {
 		return nil, fmt.Errorf("mpm scan failed: %w", err)
 	}
+
+	seen := make(map[string]bool, len(packages))
+	for _, p := range packages {
+		seen[p.ID] = true
+	}
+	appendUnique := func(extra []domain.Package) {
+		for _, p := range extra {
+			if !seen[p.ID] {
+				seen[p.ID] = true
+				packages = append(packages, p)
+			}
+		}
+	}
+
+	// 2. Tier 2: Topgrade-exclusive ecosystems & self-updates
+	appendUnique(scanTopgrade(ctx, cfg.Packages.IgnoredManagers))
+
+	// 3. Tier 3: Mole standalone self-update
+	appendUnique(scanMole(ctx, packages, cfg.Packages.IgnoredManagers))
+
+	// 4. Tier 4: Custom probes (`skills check`, `apm outdated`)
+	appendUnique(scanCustom(ctx, cfg.Packages.IgnoredManagers))
 
 	// 2. Apply persistent config pins
 	for i := range packages {

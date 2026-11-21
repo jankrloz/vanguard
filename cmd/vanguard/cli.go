@@ -595,7 +595,7 @@ func runAudit(ctx context.Context, args []string) int {
 
 func runClean(ctx context.Context, args []string) int {
 	fmt.Print(ui.Banner(Version, runtime.GOOS+"/"+runtime.GOARCH))
-	fmt.Printf("  %s\n", ui.StyleWhiteBold.Render("System & Package Cache Cleanup (MPM + Topgrade)"))
+	fmt.Printf("  %s\n", ui.StyleWhiteBold.Render("System & Package Cache Cleanup (MPM + Topgrade + Mole)"))
 	fmt.Printf("  %s\n\n", ui.StyleSubtle.Render(strings.Repeat("─", 76)))
 
 	_ = auth.EnsureSudo()

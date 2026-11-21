@@ -213,6 +213,8 @@ func TestBuildNativeFallbackCommandsMatrix(t *testing.T) {
 		{"claude-code-plugins", []string{"my-plugin"}, []string{"claude", "plugin", "update", "my-plugin"}},
 		{"pi", []string{"ext"}, []string{"pi", "update", "--extension", "ext"}},
 		{"mise", []string{"node"}, []string{"mise", "upgrade", "--bump", "-y", "node"}},
+		{"apm", []string{"spec-kit"}, []string{"apm", "deps", "update"}},
+		{"ollama", []string{"gemma4:12b"}, []string{"ollama", "pull", "gemma4:12b"}},
 	}
 
 	for _, tc := range cases {
@@ -228,6 +230,47 @@ func TestBuildNativeFallbackCommandsMatrix(t *testing.T) {
 			if got[i] != tc.wantArgs[i] {
 				t.Fatalf("mgr %s arg[%d]: got %q, want %q (full: %v)", tc.mgr, i, got[i], tc.wantArgs[i], got)
 			}
+		}
+	}
+}
+
+func TestFourTierExecutionRouting(t *testing.T) {
+	t.Setenv("VANGUARD_STATE_DIR", t.TempDir())
+	binDir := t.TempDir()
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	// Fake topgrade, mo, apm
+	if err := os.WriteFile(filepath.Join(binDir, "topgrade"), []byte("#!/bin/sh\necho \"TOPGRADE $@\"\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "mo"), []byte("#!/bin/sh\necho \"MO $@\"\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "apm"), []byte("#!/bin/sh\necho \"APM $@\"\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	execEngine := New()
+	pkgs := []domain.Package{
+		{ID: "topgrade:claude_code", Name: "claude_code", Manager: "topgrade", CurrentVersion: "2.1.0", LatestVersion: "latest"},
+		{ID: "mole:mole", Name: "mole", Manager: "mole", CurrentVersion: "1.73.0", LatestVersion: "latest"},
+		{ID: "apm:spec-kit", Name: "spec-kit", Manager: "apm", CurrentVersion: "0.1.0", LatestVersion: "0.2.0"},
+	}
+
+	var logs []string
+	err := execEngine.ExecuteUpgrades(context.Background(), pkgs, func(ev domain.UpgradeEvent) {
+		if ev.Type == "log" {
+			logs = append(logs, ev.Message)
+		}
+	})
+	if err != nil {
+		t.Fatalf("ExecuteUpgrades failed: %v (logs: %v)", err, logs)
+	}
+
+	joined := strings.Join(logs, "\n")
+	for _, want := range []string{"TOPGRADE --only claude_code --yes", "MO update", "APM deps update"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("expected log %q in:\n%s", want, joined)
 		}
 	}
 }
