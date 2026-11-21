@@ -1,3 +1,9 @@
+## [0.5.0](https://github.com/jankrloz/vanguard/compare/v0.4.0...v0.5.0) (2026-11-21)
+
+### Features
+
+* **scanner,executor:** add 4-tier MPM, Topgrade, Mole, and custom probe orchestration ([4d6fb22](https://github.com/jankrloz/vanguard/commit/4d6fb22fbd3a51326c135e1f63211995050a01af))
+
 ## [0.4.0](https://github.com/jankrloz/vanguard/compare/v0.3.1...v0.4.0) (2026-11-05)
 
 ### Features
